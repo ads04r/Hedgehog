@@ -1,0 +1,759 @@
+#!/usr/bin/php -q
+<?php
+
+// Import Graphite and ARC2 (will need to change before going open source)
+
+//include_once("/var/wwwsites/Graphite/arc/ARC2.php");
+//include_once("/var/wwwsites/Graphite/Graphite.php");
+include_once("/var/wwwsites/tools/arc2/ARC2.php");
+include_once("/var/wwwsites/tools/Graphite/Graphite.php");
+
+// Define a few file-related functions so we don't have to keep calling the shell.
+
+function deltree($dir) // Delete a non-empty directory
+{
+	if(is_dir($dir))
+	{
+		if ($handle = opendir($dir))
+		{
+			while (false !== ($entry = readdir($handle)))
+			{
+				if(!(is_dir($entry)))
+				{
+					unlink($dir . "/" . $entry);
+				} else {
+					if((!(strcmp($entry, ".."))) & (!(strcmp($entry, "."))))
+					{
+						deltree($dir . "/" . $entry);
+					}
+				}
+			}
+			closedir($handle);
+		}
+	}
+	rmdir($dir);
+}
+
+function dupdir($src, $dst) // Duplicate a directory (non-recursive)
+{
+	if(!(is_dir($dst)))
+	{
+		mkdir($dst, 0755, true);
+	}
+	if(is_dir($src))
+	{
+		if ($handle = opendir($src))
+		{
+			while (false !== ($entry = readdir($handle)))
+			{
+				if(!(is_dir($entry)))
+				{
+					$file_perms = fileperms($src . "/" . $entry);
+					copy($src . "/" . $entry, $dst . "/" . $entry);
+					chmod($dst . "/" . $entry, $file_perms);
+				}
+			}
+			closedir($handle);
+		}
+	}
+}
+
+function wget($url, $file)
+{
+	$ch = curl_init();
+	$timeout = 5;
+	curl_setopt($ch, CURLOPT_URL, $url);
+	curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+	curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $timeout);
+	$fp = fopen($file, "w");
+	fwrite($fp, curl_exec($ch));
+	fclose($fp);
+	curl_close($ch);
+}
+
+function import_4store($url, $graph, $triples)
+{
+	$max_triples = 10000;
+	
+	$r = array();
+	if(count($triples) > $max_triples)
+	{
+		$chunked = array();
+		$chunk = array();
+		$i = 0;
+		foreach($triples as $triple)
+		{
+			$chunk[] = $triple;
+			$i++;
+			if($i >= $max_triples)
+			{
+				$chunked[] = $chunk;
+				$chunk = array();
+				$i = 0;
+			}
+		}
+		$chunked[] = $chunk;
+		$i = 0;
+		foreach($chunked as $chunk)
+		{
+			$data = implode("\n", $chunk);
+			if($i == 0)
+			{
+				$ch = curl_init();
+				curl_setopt($ch, CURLOPT_URL, $url . $graph);
+				curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: application/x-turtle','Content-Length: ' . strlen($data)));
+				curl_setopt($ch, CURLOPT_VERBOSE, 0);
+				curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+				curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "PUT"); 
+				curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+				curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
+				$success_report = str_replace("\n", ", ", trim(curl_exec($ch)));
+				if(strcmp(substr($success_report, 0, 3), "400") == 0)
+				{
+					print("\n\n");
+					print($data);
+					exit();
+				}
+				$r[] = $success_report;
+				curl_close($ch);
+			} else {
+				$postdata = array('graph' => $graph, 'data' => $data, 'mime-type' => 'application/x-turtle');
+				$ch = curl_init();
+				curl_setopt($ch, CURLOPT_URL, $url);
+				curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: application/x-www-form-urlencoded'));
+				curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+				curl_setopt($ch, CURLOPT_POST, true);
+				curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postdata));
+				$r[] = str_replace("\n", ", ", trim(curl_exec($ch)));
+				curl_close($ch);
+			}
+			$i++;
+		}
+	} else {
+		$data = implode("\n", $triples);
+		$ch = curl_init();
+		curl_setopt($ch, CURLOPT_URL, $url . $graph);
+		curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: application/x-turtle','Content-Length: ' . strlen($data)));
+		curl_setopt($ch, CURLOPT_VERBOSE, 0);
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+		curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "PUT"); 
+		curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
+		$r[] = str_replace("\n", ", ", trim(curl_exec($ch)));
+		//$chapierr = curl_errno($ch);
+		//$cherrmsg = curl_error($ch);
+		curl_close($ch);
+	}
+	
+	return(implode("\n                  ", $r));
+}
+
+// This is necessary because the NTriples serializer in ARC2 is broken
+// It basically ensures that string literals are surrounded with " rather than '
+// Not sure on the official standard but 4store doesn't like the latter.
+function re_escape_triple($t)
+{
+	if(preg_match("/^(.*)<(.*)>([ \t]+)<(.*)>([ \t]+)'(.*)'([ \t]+)\.(.*)$/", $t, $m) > 0)
+	{
+		return($m[1] . "<" . $m[2] . "> <" . $m[4] . "> \"" . str_replace("\\'", "'", $m[6]) . "\" ." . $m[8]);
+	} else {
+		return($t);
+	}
+}
+
+// Set up the standard variables (...constants?)
+$rapper_path = "/usr/local/bin/rapper";
+$hashes_dir = "/var/wwwsites/var/data-hashes";
+$source_base_dir = "/var/wwwsites/data";
+$target_base_dir = "/var/wwwsites/southampton.ac.uk/data/htdocs/dumps";
+$cfg_base_dir = "/var/wwwsites/cfg";
+//$tools_dir = "/var/wwwsites/Grinder/bin";
+$tools_dir = "/var/wwwsites/tools/Grinder/bin";
+$tmp_dir = "/var/wwwsites/var/hopper";
+$target_base_url = "http://data.southampton.ac.uk/dumps";
+$xml_base = "http://id.southampton.ac.uk";
+
+$system_name = "Hedgehog"; // so we can change it later!
+
+// Process command line arguments
+$datasets = array();
+$switches = array();
+for($i = 1; $i < (count($argv)); $i++)
+{
+	if (strcmp(substr($argv[$i], 0, 1), "-") == 0)
+	{
+		$k = $argv[$i];
+		$switches[$k] = '';
+	} else {
+		$datasets[] = $argv[$i];
+	}
+}
+
+// Display help page if requested, or if parameters are incorrect.
+if((array_key_exists("--help", $switches)) | (array_key_exists("-help", $switches)) | (array_key_exists("-h", $switches)) | (array_key_exists("-?", $switches)) | (count($datasets) == 0))
+{
+	print("publish_dataset\n");
+	print("---------------\n");
+	print("A tool for publishing datasets within the " . $system_name . " system.\n\n");
+	print("Usage: publish_dataset (options) dataset [dataset [dataset [...]]]\n\n");
+	if((array_key_exists("--help", $switches)) | (array_key_exists("-help", $switches)) | (array_key_exists("-h", $switches)) | (array_key_exists("-?", $switches)))
+	{
+		// Show extended help
+		print("Options\n");
+		print("  --help\tShow this help screen\n");
+		print("  --quiet\tNo output (good for cron)\n");
+		print("  --force\tImport even if nothing has changed\n");
+		print("  --test\tTest mode, check files without importing\n");
+		print("  --noimport\tPerform everything except the final import\n");
+	} else {
+		print("Use --help switch for more options.\n");
+	}
+	print("\n");
+	exit();
+}
+
+// Set variable $quiet if the user requests it.
+if((array_key_exists("--quiet", $switches)) | (array_key_exists("-quiet", $switches)) | (array_key_exists("-q", $switches)))
+{
+	$quiet = true;
+} else {
+	$quiet = false;
+}
+
+// Set variable $force_import if the user requests it.
+if(array_key_exists("--force", $switches))
+{
+	$force_import = true;
+} else {
+	$force_import = false;
+}
+
+// Set variable $test_only if the user requests it.
+if(array_key_exists("--test", $switches))
+{
+	$test_only = true;
+} else {
+	$test_only = false;
+}
+
+// Set variable $skip_import if the user requests it.
+if(array_key_exists("--noimport", $switches))
+{
+	$skip_import = true;
+} else {
+	$skip_import = false;
+}
+
+// Check to see if the dataset directories exist
+$errors = array();
+foreach($datasets as $dataset)
+{
+	$dataset_path = $cfg_base_dir . "/" . $dataset;
+	$dataset_cfg = $dataset_path . "/publish.json";
+	if(!(file_exists($dataset_cfg)))
+	{
+		$errors[] = $dataset;
+	}
+}
+if(count($errors) > 0)
+{
+	print("The following datasets cannot be imported: " . implode(", ", $errors) . ".\n");
+	print("Configuration files do not appear to exist.\n");
+	exit();
+}
+
+// Check to see all the relevant directories exist
+
+$errors = array();
+if(!(is_dir($hashes_dir)))
+{
+	$errors[] = $hashes_dir;
+}
+if(!(is_dir($source_base_dir)))
+{
+	$errors[] = $source_base_dir;
+}
+if(!(is_dir($target_base_dir)))
+{
+	$errors[] = $target_base_dir;
+}
+if(!(is_dir($cfg_base_dir)))
+{
+	$errors[] = $cfg_base_dir;
+}
+if(!(is_dir($tools_dir)))
+{
+	$errors[] = $tools_dir;
+}
+if(!(is_dir($tmp_dir)))
+{
+	$errors[] = $tmp_dir;
+}
+if(count($errors) > 0)
+{
+	print("The following directories cannot be found: \n- " . implode("\n- ", $errors) . "\n");
+	exit();
+}
+
+// Check to see if the config files are valid
+$errors = array();
+foreach($datasets as $dataset)
+{
+	$dataset_path = $cfg_base_dir . "/" . $dataset;
+	$dataset_cfg = $dataset_path . "/publish.json";
+	$json_obj = json_decode(implode("", file($dataset_cfg)), true);
+	if(!(is_array($json_obj))) {
+		$json_obj = array();
+	}
+	if((!(array_key_exists("properties", $json_obj))) | ((!(array_key_exists("additional_triples", $json_obj))) & (!(array_key_exists("triples", $json_obj)))) | (!(array_key_exists("downloads", $json_obj))) | (!(array_key_exists("tools", $json_obj))) | (!(array_key_exists("files", $json_obj))) | (!(array_key_exists("commands", $json_obj))))
+	{
+		$errors[] = $dataset;
+	}
+}
+if(count($errors) > 0)
+{
+	print("The following datasets cannot be imported: " . implode(", ", $errors) . ".\n");
+	print("The configuration files appear to be invalid.\n");
+	exit();
+}
+
+// Check that all the necessary files exist
+$errors = array();
+foreach($datasets as $dataset)
+{
+	$dataset_path = $cfg_base_dir . "/" . $dataset;
+	$dataset_cfg = $dataset_path . "/publish.json";
+	$json_obj = json_decode(implode("", file($dataset_cfg)), true);
+	$files_list = $json_obj['files'];
+	chdir($dataset_path);
+	foreach($files_list as $file_req)
+	{
+		if(!(file_exists($file_req)))
+		{
+			$errors[] = $dataset;
+		}
+	}
+}
+if(count($errors) > 0)
+{
+	print("The following datasets cannot be imported: " . implode(", ", $errors) . ".\n");
+	print("Files defined in the configuration file are not present.\n");
+	exit();
+}
+
+// Check that each dataset actually has an import instruction
+$errors = array();
+foreach($datasets as $dataset)
+{
+	$dataset_path = $cfg_base_dir . "/" . $dataset;
+	$dataset_cfg = $dataset_path . "/publish.json";
+	$json_obj = json_decode(implode("", file($dataset_cfg)), true);
+	$properties_list = $json_obj['properties'];
+	if(!(array_key_exists("import_file", $properties_list)))
+	{
+		$errors[] = $dataset;
+	}
+}
+if(count($errors) > 0)
+{
+	print("The following datasets cannot be imported: " . implode(", ", $errors) . ".\n");
+	print("No import command can be found.\n");
+	exit();
+}
+
+if($test_only)
+{
+	if(!$quiet)
+	{
+		print("Preliminary checks all OK.\n");
+	}
+
+} else {
+
+	// OK, so preliminary checks are OK, let's start trying to do something...
+	
+	foreach($datasets as $dataset)
+	{
+	
+		// Create directories for processing
+		$date = date("Y-m-d");
+		$path = $dataset;
+		$subset_id = $path;
+		$source_dir = $source_base_dir . "/" . $subset_id;
+		$target_path = $path . "/" . $date;
+		$target_dir = $target_base_dir . "/" . $target_path;
+		$target_dir_new = $tmp_dir . "/" . $dataset . ".new." . getmypid(); // not in htdocs, may have secrets
+		$cfg_dir = $cfg_base_dir . "/" . $dataset;
+		$dataset_path = $cfg_base_dir . "/" . $dataset;
+		$dataset_cfg = $dataset_path . "/publish.json";
+		
+		// Read the configuration file
+		$cfg_obj = json_decode(implode("", file($dataset_cfg)), true);
+		$cfg_properties = $cfg_obj['properties'];
+		if(array_key_exists("additional_triples", $cfg_obj))
+		{
+			$cfg_triples = $cfg_obj['additional_triples'];
+		} else {
+			$cfg_triples = $cfg_obj['triples'];
+		}
+		$cfg_downloads = $cfg_obj['downloads'];
+		$cfg_files = $cfg_obj['files'];
+		$cfg_tools = $cfg_obj['tools'];
+		$cfg_commands = $cfg_obj['commands'];
+		$cfg_commands_prepare = $cfg_commands['prepare'];
+		$cfg_commands_import = $cfg_commands['import'];
+		$cfg_import = $cfg_properties['import_file'];
+		$cfg_force = (!($cfg_properties['check_hashes']));
+		
+		// Show the current dataset, for debugging purposes.
+		if(!$quiet)
+		{
+			print(" - " . $dataset . "\n");
+		}
+	
+		// Prepare Working directory  (hopper)
+		if(is_dir($target_dir_new)) 
+		{
+			deltree($target_dir_new);
+		}
+		mkdir($target_dir_new, 0755, true);
+		// Copy contents of config directory into hopper
+		dupdir($cfg_dir, $target_dir_new);
+		
+		// Copy contents of static data directory into hopper
+		if(is_dir($source_dir))
+		{
+			dupdir($source_dir, $target_dir_new);
+		}
+		
+		// Begin the downloading
+		chdir($target_dir_new);
+		$date_download_start = date("c");
+		foreach($cfg_downloads as $download)
+		{
+			$file_local = $download['localfile'];
+			$file_remote = $download['download'];
+			if(!$quiet)
+			{
+				print("     Downloading " . $file_local . "\n");
+			}
+			wget($file_remote, $file_local);
+		}
+		$date_download_end = date("c");
+	
+		// Install the required tools
+		chdir($target_dir_new);
+		foreach($cfg_tools as $tool)
+		{
+			if(!$quiet)
+			{
+				print("     Installing " . $tool . "\n");
+			}
+			$file_perms = fileperms($tools_dir . "/" . $tool);
+			copy($tools_dir . "/" . $tool, "./" . $tool);
+			chmod("./" . $tool, $file_perms);
+		}
+		
+		// Run preparation script(s)
+		chdir($target_dir_new);
+		foreach($cfg_commands_prepare as $command)
+		{
+			if(!$quiet)
+			{
+				print("       " . $command . "\n");
+			}
+			//shell_exec($command . " 2>&1");
+			shell_exec($command);
+		}
+		
+		// Check hashes for new files
+		if($force_import | $cfg_force)
+		{
+			if(!$quiet)
+			{
+				print("     Skipping hash check, importing anyway\n");
+			}
+			$import_ok = true;
+		} else {
+			$import_ok = false;
+			$hash_file = $hashes_dir . "/" . $dataset . ".hashes";
+			if(!$quiet)
+			{
+				print("     Checking hashes\n");
+			}
+			// Load previous hashes
+			$old_hashes = array();
+			if(file_exists($hash_file))
+			{
+				$f = file($hash_file);
+				foreach($f as $l)
+				{
+					if(strlen($l) > 0)
+					{
+						$a = explode(" ", $l, 2);
+						$k = trim($a[1]);
+						$v = trim($a[0]);
+						$old_hashes[$k] = $v;
+					}
+				}
+			}
+			if ($handle = opendir("."))
+			{
+				$fp = fopen($hash_file, "w");
+				while (false !== ($entry = readdir($handle)))
+				{
+					if(!(is_dir($entry)))
+					{
+						$new_hash = md5_file("./" . $entry);
+						fwrite($fp, $new_hash . " " . $entry . "\n");
+						if(!(array_key_exists($entry, $old_hashes)))
+						{
+							$import_ok = true;
+							//print("       " . $entry . " added\n");
+						} else {
+							if(strcmp($new_hash, $old_hashes[$entry]) != 0)
+							{
+								$import_ok = true;
+								//print("       " . $entry . " changed\n");
+							}
+						}
+					}
+				}
+				fclose($fp);
+			}
+		}
+		
+		if($import_ok)
+		{
+			
+			// Generate import data if necessary.
+			chdir($target_dir_new);
+			foreach($cfg_commands_import as $command)
+			{
+				if(!$quiet)
+				{
+					print("       " . $command . "\n");
+				}
+				//shell_exec($command . " 2>&1");
+				shell_exec($command);
+			}
+			
+			// Final check before importing - does the import file exist?
+			if(!(file_exists($cfg_import)))
+			{
+				if(!$quiet)
+				{
+					print("     IMPORT FAILED ## Could not find specified import file '" . $cfg_import . "'\n");
+				}
+			} else {
+				
+				// Set some more variables
+				$final_dump_file_ttl = $dataset . ".ttl";
+				$final_dump_url_ttl = $target_base_url . "/" . $target_path . "/" . $final_dump_file_ttl;
+				$final_dump_file_rdf = $dataset . ".rdf";
+				$final_dump_url_rdf = $target_base_url . "/" . $target_path . "/" . $final_dump_file_rdf;
+				$ntriples_file = $tmp_dir . "/" . $dataset . "-full.nt." . getmypid();
+				$import_url = "http://localhost:8002/data/";
+				$import_url_graph = "http://id.southampton.ac.uk/dataset/" . $subset_id . "/latest";
+		
+				// Generate N-Triples file, using Rapper
+				$cmd_line = $rapper_path . " -g -o ntriples " . $cfg_import . " 2>/dev/null ";
+				$rdf_data = shell_exec($cmd_line);
+				$triples = explode("\n", trim($rdf_data));
+				$trp = count($triples);
+				
+				if(!$quiet)
+				{
+					print("     " . $trp . " triples loaded, generating provenance\n");
+				}
+				
+				// Add provenance
+				$graph = new Graphite();
+				if(strcmp(substr($cfg_import, -4), ".rdf") == 0)
+				{
+					$main_import_format = "rdfxml";
+				} else {
+					$main_import_format = "triples";
+				}
+				foreach($cfg_downloads as $download)
+				{
+					$ttl = "";
+					$localfile_arr = explode("/", $download['localfile']);
+					$localfile = $localfile_arr[(count($localfile_arr) - 1)];
+					$ttl .= "<" . $target_base_url . "/" . $target_path . "/" . $localfile . "#provenance> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/void/provenance/ns/ProvenanceEvent> ;\n";
+					$ttl .= " <http://purl.org/void/provenance/ns/processType> <http://id.southampton.ac.uk/ns/DownloadViaHTTP> ;";
+					$ttl .= " <http://purl.org/void/provenance/ns/resultingDataset> <" . $target_base_url . "/" . $target_path . "/" . $localfile . "> ;";
+					$ttl .= " <http://purl.org/void/provenance/ns/sourceDataset> <" . $download['download'] . "> ;";
+					$ttl .= " <http://www.w3.org/2006/time#hasBeginning> \"" . $date_download_start . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> ;";
+					$ttl .= " <http://www.w3.org/2006/time#hasEnd> \"" . $date_download_end . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> ;";
+					$graph->addTurtle($xml_base, $ttl);
+				}
+				$ttl = "";
+				if(strcmp($main_import_format, "triples") == 0)
+				{
+					$ttl = "<" . $final_dump_url_rdf . "#provenance>\n";
+					$ttl .= " <http://purl.org/void/provenance/ns/processType> </ns/ConvertTurtleToRDFXML> ;\n";
+					$ttl .= " <http://purl.org/void/provenance/ns/resultingDataset> <" . $final_dump_url_rdf . "> ;\n";
+					$ttl .= " <http://purl.org/void/provenance/ns/sourceDataset> <" . $final_dump_url_ttl . "> ;\n";
+					$ttl .= " a <http://purl.org/void/provenance/ns/ProvenanceEvent> .\n";
+					$graph->addTurtle($xml_base, $ttl);
+				} elseif(strcmp($main_import_format, "rdfxml") == 0)
+				{
+					$ttl = "<" . $final_dump_url_ttl . "#provenance>\n";
+					$ttl .= " <http://purl.org/void/provenance/ns/processType> </ns/ConvertRDFXMLToTurtle> ;\n";
+					$ttl .= " <http://purl.org/void/provenance/ns/resultingDataset> <" . $final_dump_url_ttl . "> ;\n";
+					$ttl .= " <http://purl.org/void/provenance/ns/sourceDataset> <" . $final_dump_url_rdf . "> ;\n";
+					$ttl .= " a <http://purl.org/void/provenance/ns/ProvenanceEvent> .\n";
+					$graph->addTurtle($xml_base, $ttl);
+				}
+				if(strlen($ttl) > 0)
+				{
+					if(strcmp($main_import_format, "triples") == 0)
+					{
+						$ttl = "<" . $final_dump_url_ttl . ">\n";
+						$ttl .= " <http://purl.org/dc/terms/created> \"" . date("c") . "\"^^<http://www.w3.org/2001/XMLSchema#date> ;\n";
+						$ttl .= " <http://purl.org/dc/terms/isPartOf> </dataset/" . $dataset . "> .\n";
+						$graph->addTurtle($xml_base, $ttl);
+						$ttl = "<" . $final_dump_url_ttl . "#provenance>\n";
+						$ttl .= " <http://purl.org/void/provenance/ns/resultingDataset> <" . $final_dump_url_ttl . "> ;\n";
+					} else {
+						$ttl = "<" . $final_dump_url_rdf . ">\n";
+						$ttl .= " <http://purl.org/dc/terms/created> \"" . date("c") . "\"^^<http://www.w3.org/2001/XMLSchema#date> ;\n";
+						$ttl .= " <http://purl.org/dc/terms/isPartOf> </dataset/" . $dataset . "> .\n";
+						$graph->addTurtle($xml_base, $ttl);
+						$ttl = "<" . $final_dump_url_rdf . "#provenance>\n";
+						$ttl .= " <http://purl.org/void/provenance/ns/resultingDataset> <" . $final_dump_url_rdf . "> ;\n";
+					}
+					foreach($cfg_downloads as $download)
+					{
+						$localfile_arr = explode("/", $download['localfile']);
+						$localfile = $localfile_arr[(count($localfile_arr) - 1)];
+						if(preg_match("/\\.(psv|tsv|csv|xls)$/", $localfile) > 0)
+						{
+							$ttl .= " <http://purl.org/void/provenance/ns/sourceDataset> <" . $target_base_url . "/" . $target_path . "/" . $localfile . "> ;\n";
+						} else {
+							if(preg_match("/\\.private$/", $localfile) == 0)
+							{
+								$ttl .= " </ns/processIncludedFile> <" . $target_base_url . "/" . $target_path . "/" . $localfile . "> ;\n";
+							}
+						}
+					}
+					foreach($cfg_files as $file)
+					{
+						$localfile_arr = explode("/", $file);
+						$localfile = $localfile_arr[(count($localfile_arr) - 1)];
+						if(preg_match("/\\.private$/", $localfile) == 0)
+						{
+							$ttl .= " </ns/processIncludedFile> <" . $target_base_url . "/" . $target_path . "/" . $localfile . "> ;\n";
+						}
+					}
+					foreach($cfg_tools as $file)
+					{
+						if(preg_match("/\\.private$/", $file) == 0)
+						{
+							$ttl .= " </ns/processIncludedFile> <" . $target_base_url . "/" . $target_path . "/" . $file . "> ;\n";
+						}
+					}
+					$ttl .= " <http://purl.org/void/provenance/ns/processType> </ns/ConvertAndPublishDataset> ;\n";
+					$ttl .= " a <http://purl.org/void/provenance/ns/ProvenanceEvent> ;\n";
+					$ttl .= " <http://www.w3.org/2006/time#hasBeginning> \"" . $date_download_start . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> ;\n";
+					$ttl .= " <http://www.w3.org/2006/time#hasEnd> \"" . date("c") . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> .\n";
+					$graph->addTurtle($xml_base, $ttl);
+				}
+				$prov_triples = explode("\n", trim($graph->serialize("NTriples")));
+				if(!$quiet)
+				{
+					print("     Provenance generated\n");
+				}
+				
+				// Combine with provenance and de-duplicate
+				
+				$triples_data = array_unique(array_merge($prov_triples, $triples));
+				
+				// This is a good place to stop if we don't actually want to do an import
+				
+				if($skip_import)
+				{
+					if(!$quiet)
+					{
+						print("     Processing succeeded, not importing due to command line switch.\n");
+					}
+					exit();
+				}
+				
+				// Dump to temporary n-triples file for processing with Rapper
+				
+				$fp = fopen($ntriples_file, "w");
+				foreach($triples_data as $t)
+				{
+					fwrite($fp, $t . "\n");
+				}
+				fclose($fp);
+			
+				// All triples generated, now dump the files to their textual representations...
+			
+				$cmd_line = $rapper_path . " -i ntriples -o turtle " . $ntriples_file . " 2>/dev/null";
+				$fp = fopen($final_dump_file_ttl, "w");
+				fwrite($fp, shell_exec($cmd_line));
+				fclose($fp);
+				if(!$quiet)
+				{
+					print("     Created file " . $final_dump_file_ttl . "\n");
+				}
+				$cmd_line = $rapper_path . " -i ntriples -o rdfxml " . $ntriples_file . " 2>/dev/null";
+				$fp = fopen($final_dump_file_rdf, "w");
+				fwrite($fp, shell_exec($cmd_line));
+				fclose($fp);
+				if(!$quiet)
+				{
+					print("     Created file " . $final_dump_file_rdf . "\n");
+				}
+				
+				// Delete the ntriples file as we don't need it any more
+				
+				unlink($ntriples_file);
+				
+				// We have everything we need to import, so we can go about preparing the raw data files for publishing
+				// Start by deleting anthing with .private as an extension.
+				if(!$quiet)
+				{
+					print("     Deleting .private files\n");
+				}			
+				$files = glob('./*.private');
+				foreach($files as $file){
+	  			if(is_file($file))
+	  			{
+	    				unlink($file); // delete file
+		    		}
+				}
+				
+				// Now copy the files from the hopper to their htdocs position
+				if(!$quiet)
+				{
+					print("     Copying raw data files to " . $target_dir . "\n");
+				}			
+				if(is_dir($target_dir)) 
+				{
+					deltree($target_dir);
+				}
+				mkdir($target_dir, 0755, true);
+				dupdir($target_dir_new, $target_dir);
+				
+				// And import!
+				if(!$quiet)
+				{
+					print("     Importing... ");
+				}
+				$import_result = import_4store($import_url, $import_url_graph, $triples_data);
+				if(!$quiet)
+				{
+					print($import_result . "\n");
+				}
+	
+			}
+			
+		}
+	}
+}
+
+?>
