@@ -3,8 +3,6 @@
 
 // Import Graphite and ARC2 (will need to change before going open source)
 
-// Test edit
-
 //include_once("/var/wwwsites/Graphite/arc/ARC2.php");
 //include_once("/var/wwwsites/Graphite/Graphite.php");
 include_once("/var/wwwsites/tools/arc2/ARC2.php");
