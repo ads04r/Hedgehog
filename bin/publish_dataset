@@ -6,8 +6,6 @@
 function createSettings($settings_path)
 {
 	
-	print($settings_path . "\n");
-	
 	$r = array();
 	if(is_dir($settings_path))
 	{
@@ -41,6 +39,83 @@ function createSettings($settings_path)
 		}		
 	}
 	return($r);
+}
+
+function getDatasets()
+{
+	global $argv;
+
+	$datasets = array();
+	for($i = 1; $i < (count($argv)); $i++)
+	{
+		if (strcmp(substr($argv[$i], 0, 1), "-") != 0)
+		{
+			$datasets[] = $argv[$i];
+		}
+	}
+	
+	return($datasets);
+}
+
+function createSwitches()
+{
+	global $argv;
+
+	$switches = array();
+
+	// Process command line arguments
+	$datasets = array();
+	$switches = array();
+	for($i = 1; $i < (count($argv)); $i++)
+	{
+		if (strcmp(substr($argv[$i], 0, 1), "-") == 0)
+		{
+			$k = $argv[$i];
+			$switches[$k] = '';
+		}
+	}
+	
+	// Set variable $quiet if the user requests it.
+	if((array_key_exists("--quiet", $switches)) | (array_key_exists("-quiet", $switches)) | (array_key_exists("-q", $switches)))
+	{
+		$switches['quiet'] = true;
+	} else {
+		$switches['quiet'] = false;
+	}
+	
+	// Set variable $force_import if the user requests it.
+	if(array_key_exists("--force", $switches))
+	{
+		$switches['force_import'] = true;
+	} else {
+		$switches['force_import'] = false;
+	}
+	
+	// Set variable $test_only if the user requests it.
+	if(array_key_exists("--test", $switches))
+	{
+		$switches['test_only'] = true;
+	} else {
+		$switches['test_only'] = false;
+	}
+	
+	// Set variable $skip_import if the user requests it.
+	if(array_key_exists("--noimport", $switches))
+	{
+		$switches['skip_import'] = true;
+	} else {
+		$switches['skip_import'] = false;
+	}
+
+	// Display help if the user requests it.
+	if((array_key_exists("--help", $switches)) | (array_key_exists("-help", $switches)) | (array_key_exists("-h", $switches)) | (array_key_exists("-?", $switches)))
+	{
+		$switches['help'] = true;
+	} else {
+		$switches['help'] = false;
+	}
+
+	return($switches);
 }
 
 // Define a few file-related functions so we don't have to keep calling the shell.
@@ -207,39 +282,139 @@ function re_escape_triple($t)
 	}
 }
 
-// Create settings array
-
-$global_settings = createSettings("/var/wwwsites/cfg/settings");
-
-// Import Graphite and ARC2 (will need to change before going open source)
-
-if(array_key_exists("arc2_path", $global_settings) & array_key_exists("graphite_path", $global_settings)) {
-	include_once($global_settings['arc2_path']);
-	include_once($global_settings['graphite_path']);
-}
-
-// Process command line arguments
-$datasets = array();
-$switches = array();
-for($i = 1; $i < (count($argv)); $i++)
+// Function to check all files and data are present and correct
+function check_settings($global_settings, $datasets)
 {
-	if (strcmp(substr($argv[$i], 0, 1), "-") == 0)
+	$result = "";
+	
+	// Check to see all the relevant directories exist
+	
+	$errors = array();
+	if(!(is_dir($global_settings['hashes_dir'])))
 	{
-		$k = $argv[$i];
-		$switches[$k] = '';
-	} else {
-		$datasets[] = $argv[$i];
+		$errors[] = $global_settings['hashes_dir'];
 	}
+	if(!(is_dir($global_settings['source_base_dir'])))
+	{
+		$errors[] = $global_settings['source_base_dir'];
+	}
+	if(!(is_dir($global_settings['target_base_dir'])))
+	{
+		$errors[] = $global_settings['target_base_dir'];
+	}
+	if(!(is_dir($global_settings['cfg_base_dir'])))
+	{
+		$errors[] = $global_settings['cfg_base_dir'];
+	}
+	if(!(is_dir($global_settings['tools_dir'])))
+	{
+		$errors[] = $global_settings['tools_dir'];
+	}
+	if(!(is_dir($global_settings['tmp_dir'])))
+	{
+		$errors[] = $global_settings['tmp_dir'];
+	}
+	if(count($errors) > 0)
+	{
+		$result .= "The following directories cannot be found: \n- " . implode("\n- ", $errors) . "\n\n";
+		return($result);
+	}
+	
+	// Check to see if the dataset directories exist
+	$errors = array();
+	foreach($datasets as $dataset)
+	{
+		$dataset_path = $global_settings['cfg_base_dir'] . "/" . $dataset;
+		$dataset_cfg = $dataset_path . "/publish.json";
+		if(!(file_exists($dataset_cfg)))
+		{
+			$errors[] = $dataset;
+		}
+	}
+	if(count($errors) > 0)
+	{
+		$result .= "The following datasets cannot be imported: " . implode(", ", $errors) . ".\n";
+		$result .= "Configuration files do not appear to exist.\n\n";
+		return($result);
+	}
+	
+	// Check to see if the config files are valid
+	$errors = array();
+	foreach($datasets as $dataset)
+	{
+		$dataset_path = $global_settings['cfg_base_dir'] . "/" . $dataset;
+		$dataset_cfg = $dataset_path . "/publish.json";
+		@$json_obj = json_decode(implode("", file($dataset_cfg)), true);
+		if(!(is_array($json_obj))) {
+			$json_obj = array();
+		}
+		if((!(array_key_exists("properties", $json_obj))) | ((!(array_key_exists("additional_triples", $json_obj))) & (!(array_key_exists("triples", $json_obj)))) | (!(array_key_exists("downloads", $json_obj))) | (!(array_key_exists("tools", $json_obj))) | (!(array_key_exists("files", $json_obj))) | (!(array_key_exists("commands", $json_obj))))
+		{
+			$errors[] = $dataset;
+		}
+	}
+	if(count($errors) > 0)
+	{
+		$result .= "The following datasets cannot be imported: " . implode(", ", $errors) . ".\n";
+		$result .= "The configuration files appear to be invalid.\n\n";
+		return($result);
+	}
+	
+	// Check that all the necessary files exist
+	$errors = array();
+	foreach($datasets as $dataset)
+	{
+		$dataset_path = $global_settings['cfg_base_dir'] . "/" . $dataset;
+		$dataset_cfg = $dataset_path . "/publish.json";
+		@$json_obj = json_decode(implode("", file($dataset_cfg)), true);
+		$files_list = $json_obj['files'];
+		@chdir($dataset_path);
+		foreach($files_list as $file_req)
+		{
+			if(!(file_exists($file_req)))
+			{
+				$errors[] = $dataset;
+			}
+		}
+	}
+	if(count($errors) > 0)
+	{
+		$result .= "The following datasets cannot be imported: " . implode(", ", $errors) . ".\n";
+		$result .= "Files defined in the configuration file are not present.\n\n";
+		return($result);
+	}
+	
+	// Check that each dataset actually has an import instruction
+	$errors = array();
+	foreach($datasets as $dataset)
+	{
+		$dataset_path = $global_settings['cfg_base_dir'] . "/" . $dataset;
+		$dataset_cfg = $dataset_path . "/publish.json";
+		@$json_obj = json_decode(implode("", file($dataset_cfg)), true);
+		$properties_list = $json_obj['properties'];
+		if(!(array_key_exists("import_file", $properties_list)))
+		{
+			$errors[] = $dataset;
+		}
+	}
+	if(count($errors) > 0)
+	{
+		$result .= "The following datasets cannot be imported: " . implode(", ", $errors) . ".\n";
+		$result .= "No import command can be found.\n\n";
+		return($result);
+	}
+
+	return($result);
 }
 
-// Display help page if requested, or if parameters are incorrect.
-if((array_key_exists("--help", $switches)) | (array_key_exists("-help", $switches)) | (array_key_exists("-h", $switches)) | (array_key_exists("-?", $switches)) | (count($datasets) == 0))
+// Function for displaying command line help.
+function display_help($system_name, $extended=0)
 {
 	print("publish_dataset\n");
 	print("---------------\n");
-	print("A tool for publishing datasets within the " . $global_settings['system_name'] . " system.\n\n");
+	print("A tool for publishing datasets within the " . $system_name . " system.\n\n");
 	print("Usage: publish_dataset (options) dataset [dataset [dataset [...]]]\n\n");
-	if((array_key_exists("--help", $switches)) | (array_key_exists("-help", $switches)) | (array_key_exists("-h", $switches)) | (array_key_exists("-?", $switches)))
+	if($extended == 1)
 	{
 		// Show extended help
 		print("Options\n");
@@ -252,172 +427,18 @@ if((array_key_exists("--help", $switches)) | (array_key_exists("-help", $switche
 		print("Use --help switch for more options.\n");
 	}
 	print("\n");
-	exit();
 }
 
-// Set variable $quiet if the user requests it.
-if((array_key_exists("--quiet", $switches)) | (array_key_exists("-quiet", $switches)) | (array_key_exists("-q", $switches)))
+// Function to actually build a dataset
+function build_dataset($dataset, $global_settings)
 {
-	$quiet = true;
-} else {
-	$quiet = false;
-}
+		// Process command line switches
+		$switches = createSwitches();
+		$quiet = $switches['quiet'];
+		$force_import = $switches['force_import'];
+		$skip_import = $switches['skip_import'];
+		$test_only = $switches['test_only'];
 
-// Set variable $force_import if the user requests it.
-if(array_key_exists("--force", $switches))
-{
-	$force_import = true;
-} else {
-	$force_import = false;
-}
-
-// Set variable $test_only if the user requests it.
-if(array_key_exists("--test", $switches))
-{
-	$test_only = true;
-} else {
-	$test_only = false;
-}
-
-// Set variable $skip_import if the user requests it.
-if(array_key_exists("--noimport", $switches))
-{
-	$skip_import = true;
-} else {
-	$skip_import = false;
-}
-
-// Check to see if the dataset directories exist
-$errors = array();
-foreach($datasets as $dataset)
-{
-	$dataset_path = $global_settings['cfg_base_dir'] . "/" . $dataset;
-	$dataset_cfg = $dataset_path . "/publish.json";
-	if(!(file_exists($dataset_cfg)))
-	{
-		$errors[] = $dataset;
-	}
-}
-if(count($errors) > 0)
-{
-	print("The following datasets cannot be imported: " . implode(", ", $errors) . ".\n");
-	print("Configuration files do not appear to exist.\n");
-	exit();
-}
-
-// Check to see all the relevant directories exist
-
-$errors = array();
-if(!(is_dir($global_settings['hashes_dir'])))
-{
-	$errors[] = $global_settings['hashes_dir'];
-}
-if(!(is_dir($global_settings['source_base_dir'])))
-{
-	$errors[] = $global_settings['source_base_dir'];
-}
-if(!(is_dir($global_settings['target_base_dir'])))
-{
-	$errors[] = $global_settings['target_base_dir'];
-}
-if(!(is_dir($global_settings['cfg_base_dir'])))
-{
-	$errors[] = $global_settings['cfg_base_dir'];
-}
-if(!(is_dir($global_settings['tools_dir'])))
-{
-	$errors[] = $global_settings['tools_dir'];
-}
-if(!(is_dir($global_settings['tmp_dir'])))
-{
-	$errors[] = $global_settings['tmp_dir'];
-}
-if(count($errors) > 0)
-{
-	print("The following directories cannot be found: \n- " . implode("\n- ", $errors) . "\n");
-	exit();
-}
-
-// Check to see if the config files are valid
-$errors = array();
-foreach($datasets as $dataset)
-{
-	$dataset_path = $global_settings['cfg_base_dir'] . "/" . $dataset;
-	$dataset_cfg = $dataset_path . "/publish.json";
-	$json_obj = json_decode(implode("", file($dataset_cfg)), true);
-	if(!(is_array($json_obj))) {
-		$json_obj = array();
-	}
-	if((!(array_key_exists("properties", $json_obj))) | ((!(array_key_exists("additional_triples", $json_obj))) & (!(array_key_exists("triples", $json_obj)))) | (!(array_key_exists("downloads", $json_obj))) | (!(array_key_exists("tools", $json_obj))) | (!(array_key_exists("files", $json_obj))) | (!(array_key_exists("commands", $json_obj))))
-	{
-		$errors[] = $dataset;
-	}
-}
-if(count($errors) > 0)
-{
-	print("The following datasets cannot be imported: " . implode(", ", $errors) . ".\n");
-	print("The configuration files appear to be invalid.\n");
-	exit();
-}
-
-// Check that all the necessary files exist
-$errors = array();
-foreach($datasets as $dataset)
-{
-	$dataset_path = $global_settings['cfg_base_dir'] . "/" . $dataset;
-	$dataset_cfg = $dataset_path . "/publish.json";
-	$json_obj = json_decode(implode("", file($dataset_cfg)), true);
-	$files_list = $json_obj['files'];
-	chdir($dataset_path);
-	foreach($files_list as $file_req)
-	{
-		if(!(file_exists($file_req)))
-		{
-			$errors[] = $dataset;
-		}
-	}
-}
-if(count($errors) > 0)
-{
-	print("The following datasets cannot be imported: " . implode(", ", $errors) . ".\n");
-	print("Files defined in the configuration file are not present.\n");
-	exit();
-}
-
-// Check that each dataset actually has an import instruction
-$errors = array();
-foreach($datasets as $dataset)
-{
-	$dataset_path = $global_settings['cfg_base_dir'] . "/" . $dataset;
-	$dataset_cfg = $dataset_path . "/publish.json";
-	$json_obj = json_decode(implode("", file($dataset_cfg)), true);
-	$properties_list = $json_obj['properties'];
-	if(!(array_key_exists("import_file", $properties_list)))
-	{
-		$errors[] = $dataset;
-	}
-}
-if(count($errors) > 0)
-{
-	print("The following datasets cannot be imported: " . implode(", ", $errors) . ".\n");
-	print("No import command can be found.\n");
-	exit();
-}
-
-if($test_only)
-{
-	if(!$quiet)
-	{
-		print("Preliminary checks all OK.\n");
-	}
-
-} else {
-
-	// OK, so preliminary checks are OK, let's start trying to do something...
-	
-	foreach($datasets as $dataset)
-	{
-	
 		// Create directories for processing
 		$date = date("Y-m-d");
 		$path = $dataset;
@@ -796,6 +817,59 @@ if($test_only)
 			}
 			
 		}
+}
+
+// ================== Main script start here =================================
+
+// Create settings array
+
+$global_settings = createSettings("/var/wwwsites/cfg/settings");
+$switches = createSwitches();
+$datasets = getDatasets();
+
+// Import Graphite and ARC2 (will need to change before going open source)
+
+if(array_key_exists("arc2_path", $global_settings) & array_key_exists("graphite_path", $global_settings)) {
+	include_once($global_settings['arc2_path']);
+	include_once($global_settings['graphite_path']);
+}
+
+// Display help page if requested, or if parameters are incorrect.
+if(($switches['help']) | (count($datasets) == 0))
+{
+	if($switches['help'])
+	{
+		display_help($global_settings['system_name'], 1);
+	} else {
+		display_help($global_settings['system_name']);
+	}
+	exit();
+}
+
+$check_output = check_settings($global_settings, $datasets);
+if(strlen($check_output) > 0)
+{
+	if(!$switches['quiet'])
+	{
+		print($check_output);
+	}
+	exit();
+}
+
+if($switches['test_only'])
+{
+	if(!$switches['quiet'])
+	{
+		print("Preliminary checks all OK.\n");
+	}
+
+} else {
+
+	// OK, so preliminary checks are OK, let's start trying to do something...
+	
+	foreach($datasets as $dataset)
+	{
+		build_dataset($dataset, $global_settings);
 	}
 }
 
