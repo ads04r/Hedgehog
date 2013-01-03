@@ -50,7 +50,7 @@ function getDatasets()
 	{
 		if (strcmp(substr($argv[$i], 0, 1), "-") != 0)
 		{
-			$datasets[] = $argv[$i];
+			$datasets[] = trim($argv[$i], "/");
 		}
 	}
 	
