@@ -834,19 +834,26 @@ if(!(is_dir($settings_dir)))
 	if(array_key_exists("_", $_SERVER))
 	{
 		$parse = explode("/", $_SERVER['_']);
+		$c = count($parse);
+		@$parse[$c - 1] = "";
+		@$parse[$c - 2] = "";
+		$settings_dir = "/" . trim(implode("/", $parse), "/") . "/settings";
 	} else {
-		var_dump($_SERVER);
-		exit();
+		$settings_dir = "";
 	}
-	$c = count($parse);
-	@$parse[$c - 1] = "";
-	@$parse[$c - 2] = "";
-	$settings_dir = "/" . trim(implode("/", $parse), "/") . "/settings";
 }
 
 $global_settings = createSettings($settings_dir);
 $switches = createSwitches();
 $datasets = getDatasets();
+if(count($global_settings) == 0)
+{
+	if(!($switches['quiet']))
+	{
+		print("Error running - cannot find configuration.");
+	}
+	exit();
+}
 
 // Import Graphite and ARC2 (will need to change before going open source)
 
