@@ -828,7 +828,8 @@ function build_dataset($dataset, $global_settings)
 // running. If this isn't good for the current set-up, use the
 // environment variable HEDGEHOG_CONFIG to manually override.
 
-@$settings_dir = $_ENV['HEDGEHOG_CONFIG'];
+@$settings_dir = $_SERVER['HEDGEHOG_CONFIG'];
+
 if(!(is_dir($settings_dir)))
 {
 	$parse = explode("/", $_SERVER['_']);
