@@ -823,7 +823,22 @@ function build_dataset($dataset, $global_settings)
 
 // Create settings array
 
-$global_settings = createSettings("/var/wwwsites/cfg/settings");
+// The settings path defaults to the 'settings' directory which should be
+// a sibling of the 'bin' directory in which the script is currently
+// running. If this isn't good for the current set-up, use the
+// environment variable HEDGEHOG_CONFIG to manually override.
+
+@$settings_dir = $_ENV['HEDGEHOG_CONFIG'];
+if(!(is_dir($settings_dir)))
+{
+	$parse = explode("/", $_SERVER['_']);
+	$c = count($parse);
+	@$parse[$c - 1] = "";
+	@$parse[$c - 2] = "";
+	$settings_dir = "/" . trim(implode("/", $parse), "/") . "/settings";
+}
+
+$global_settings = createSettings($settings_dir);
 $switches = createSwitches();
 $datasets = getDatasets();
 
