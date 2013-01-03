@@ -831,7 +831,13 @@ function build_dataset($dataset, $global_settings)
 
 if(!(is_dir($settings_dir)))
 {
-	$parse = explode("/", $_SERVER['_']);
+	if(array_key_exists("_", $_SERVER))
+	{
+		$parse = explode("/", $_SERVER['_']);
+	} else {
+		var_dump($_SERVER);
+		exit();
+	}
 	$c = count($parse);
 	@$parse[$c - 1] = "";
 	@$parse[$c - 2] = "";
