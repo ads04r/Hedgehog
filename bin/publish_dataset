@@ -156,7 +156,7 @@ function dupdir($src, $dst) // Duplicate a directory (non-recursive)
 		{
 			while (false !== ($entry = readdir($handle)))
 			{
-				if(!(is_dir($entry)))
+				if(!(is_dir($src . "/" . $entry)))
 				{
 					$file_perms = fileperms($src . "/" . $entry);
 					copy($src . "/" . $entry, $dst . "/" . $entry);
