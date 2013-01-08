@@ -616,8 +616,13 @@ function build_dataset($dataset, $global_settings)
 				$final_dump_file_rdf = $dataset . ".rdf";
 				$final_dump_url_rdf = $global_settings['target_base_url'] . "/" . $target_path . "/" . $final_dump_file_rdf;
 				$ntriples_file = $global_settings['tmp_dir'] . "/" . $dataset . "-full.nt." . getmypid();
-				$import_url = "http://localhost:8002/data/";
-				$import_url_graph = "http://id.southampton.ac.uk/dataset/" . $subset_id . "/latest";
+				if(array_key_exists("import_url", $global_settings))
+				{
+					$import_url = $global_settings['import_url'];
+				} else {
+					$import_url = "";
+				}
+				$import_url_graph = $global_settings['xml_base'] . "/dataset/" . $subset_id . "/latest";
 		
 				// Generate N-Triples file, using Rapper
 				$cmd_line = $global_settings['rapper_path'] . " -g -o ntriples " . $cfg_import . " 2>/dev/null ";
@@ -803,14 +808,17 @@ function build_dataset($dataset, $global_settings)
 				dupdir($target_dir_new, $target_dir);
 				
 				// And import!
-				if(!$quiet)
+				if(strlen($import_url) > 0)
 				{
-					print("     Importing... ");
-				}
-				$import_result = import_4store($import_url, $import_url_graph, $triples_data);
-				if(!$quiet)
-				{
-					print($import_result . "\n");
+					if(!$quiet)
+					{
+						print("     Importing... ");
+					}
+					$import_result = import_4store($import_url, $import_url_graph, $triples_data);
+					if(!$quiet)
+					{
+						print($import_result . "\n");
+					}
 				}
 	
 			}
