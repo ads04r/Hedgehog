@@ -648,10 +648,10 @@ function build_dataset($dataset, $global_settings)
 					$ttl = "";
 					$localfile_arr = explode("/", $download['localfile']);
 					$localfile = $localfile_arr[(count($localfile_arr) - 1)];
-					$ttl .= "<" . $global_settings['target_base_url'] . "/" . $target_path . "/" . $localfile . "#provenance> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/net/provenance/ns#ProvenanceEvent> ;\n";
-					$ttl .= " <http://purl.org/net/provenance/ns#processType> <http://id.southampton.ac.uk/ns/DownloadViaHTTP> ;";
-					$ttl .= " <http://purl.org/net/provenance/ns#resultingDataset> <" . $global_settings['target_base_url'] . "/" . $target_path . "/" . $localfile . "> ;";
-					$ttl .= " <http://purl.org/net/provenance/ns#sourceDataset> <" . $download['download'] . "> ;";
+					$ttl .= "<" . $global_settings['target_base_url'] . "/" . $target_path . "/" . $localfile . "#provenance> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/void/provenance/ns/ProvenanceEvent> ;\n";
+					$ttl .= " <http://purl.org/void/provenance/ns/processType> <http://id.southampton.ac.uk/ns/DownloadViaHTTP> ;";
+					$ttl .= " <http://purl.org/void/provenance/ns/resultingDataset> <" . $global_settings['target_base_url'] . "/" . $target_path . "/" . $localfile . "> ;";
+					$ttl .= " <http://purl.org/void/provenance/ns/sourceDataset> <" . $download['download'] . "> ;";
 					$ttl .= " <http://www.w3.org/2006/time#hasBeginning> \"" . $date_download_start . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> ;";
 					$ttl .= " <http://www.w3.org/2006/time#hasEnd> \"" . $date_download_end . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> ;";
 					$graph->addTurtle($global_settings['xml_base'], $ttl);
@@ -660,18 +660,18 @@ function build_dataset($dataset, $global_settings)
 				if(strcmp($main_import_format, "triples") == 0)
 				{
 					$ttl = "<" . $final_dump_url_rdf . "#provenance>\n";
-					$ttl .= " <http://purl.org/net/provenance/ns#processType> </ns/ConvertTurtleToRDFXML> ;\n";
-					$ttl .= " <http://purl.org/net/provenance/ns#resultingDataset> <" . $final_dump_url_rdf . "> ;\n";
-					$ttl .= " <http://purl.org/net/provenance/ns#sourceDataset> <" . $final_dump_url_ttl . "> ;\n";
-					$ttl .= " a <http://purl.org/net/provenance/ns#ProvenanceEvent> .\n";
+					$ttl .= " <http://purl.org/void/provenance/ns/processType> </ns/ConvertTurtleToRDFXML> ;\n";
+					$ttl .= " <http://purl.org/void/provenance/ns/resultingDataset> <" . $final_dump_url_rdf . "> ;\n";
+					$ttl .= " <http://purl.org/void/provenance/ns/sourceDataset> <" . $final_dump_url_ttl . "> ;\n";
+					$ttl .= " a <http://purl.org/void/provenance/ns/ProvenanceEvent> .\n";
 					$graph->addTurtle($global_settings['xml_base'], $ttl);
 				} elseif(strcmp($main_import_format, "rdfxml") == 0)
 				{
 					$ttl = "<" . $final_dump_url_ttl . "#provenance>\n";
-					$ttl .= " <http://purl.org/net/provenance/ns#processType> </ns/ConvertRDFXMLToTurtle> ;\n";
-					$ttl .= " <http://purl.org/net/provenance/ns#resultingDataset> <" . $final_dump_url_ttl . "> ;\n";
-					$ttl .= " <http://purl.org/net/provenance/ns#sourceDataset> <" . $final_dump_url_rdf . "> ;\n";
-					$ttl .= " a <http://purl.org/net/provenance/ns#ProvenanceEvent> .\n";
+					$ttl .= " <http://purl.org/void/provenance/ns/processType> </ns/ConvertRDFXMLToTurtle> ;\n";
+					$ttl .= " <http://purl.org/void/provenance/ns/resultingDataset> <" . $final_dump_url_ttl . "> ;\n";
+					$ttl .= " <http://purl.org/void/provenance/ns/sourceDataset> <" . $final_dump_url_rdf . "> ;\n";
+					$ttl .= " a <http://purl.org/void/provenance/ns/ProvenanceEvent> .\n";
 					$graph->addTurtle($global_settings['xml_base'], $ttl);
 				}
 				if(strlen($ttl) > 0)
@@ -683,14 +683,14 @@ function build_dataset($dataset, $global_settings)
 						$ttl .= " <http://purl.org/dc/terms/isPartOf> </dataset/" . $dataset . "> .\n";
 						$graph->addTurtle($global_settings['xml_base'], $ttl);
 						$ttl = "<" . $final_dump_url_ttl . "#provenance>\n";
-						$ttl .= " <http://purl.org/net/provenance/ns#resultingDataset> <" . $final_dump_url_ttl . "> ;\n";
+						$ttl .= " <http://purl.org/void/provenance/ns/resultingDataset> <" . $final_dump_url_ttl . "> ;\n";
 					} else {
 						$ttl = "<" . $final_dump_url_rdf . ">\n";
 						$ttl .= " <http://purl.org/dc/terms/created> \"" . date("c") . "\"^^<http://www.w3.org/2001/XMLSchema#date> ;\n";
 						$ttl .= " <http://purl.org/dc/terms/isPartOf> </dataset/" . $dataset . "> .\n";
 						$graph->addTurtle($global_settings['xml_base'], $ttl);
 						$ttl = "<" . $final_dump_url_rdf . "#provenance>\n";
-						$ttl .= " <http://purl.org/net/provenance/ns#resultingDataset> <" . $final_dump_url_rdf . "> ;\n";
+						$ttl .= " <http://purl.org/void/provenance/ns/resultingDataset> <" . $final_dump_url_rdf . "> ;\n";
 					}
 					foreach($cfg_downloads as $download)
 					{
@@ -698,7 +698,7 @@ function build_dataset($dataset, $global_settings)
 						$localfile = $localfile_arr[(count($localfile_arr) - 1)];
 						if(preg_match("/\\.(psv|tsv|csv|xls)$/", $localfile) > 0)
 						{
-							$ttl .= " <http://purl.org/net/provenance/ns#sourceDataset> <" . $global_settings['target_base_url'] . "/" . $target_path . "/" . $localfile . "> ;\n";
+							$ttl .= " <http://purl.org/void/provenance/ns/sourceDataset> <" . $global_settings['target_base_url'] . "/" . $target_path . "/" . $localfile . "> ;\n";
 						} else {
 							if(preg_match("/\\.private$/", $localfile) == 0)
 							{
@@ -722,8 +722,8 @@ function build_dataset($dataset, $global_settings)
 							$ttl .= " </ns/processIncludedFile> <" . $global_settings['target_base_url'] . "/" . $target_path . "/" . $file . "> ;\n";
 						}
 					}
-					$ttl .= " <http://purl.org/net/provenance/ns#processType> </ns/ConvertAndPublishDataset> ;\n";
-					$ttl .= " a <http://purl.org/net/provenance/ns#ProvenanceEvent> ;\n";
+					$ttl .= " <http://purl.org/void/provenance/ns/processType> </ns/ConvertAndPublishDataset> ;\n";
+					$ttl .= " a <http://purl.org/void/provenance/ns/ProvenanceEvent> ;\n";
 					$ttl .= " <http://www.w3.org/2006/time#hasBeginning> \"" . $date_download_start . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> ;\n";
 					$ttl .= " <http://www.w3.org/2006/time#hasEnd> \"" . date("c") . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> .\n";
 					$graph->addTurtle($global_settings['xml_base'], $ttl);
