@@ -858,7 +858,7 @@ if(count($global_settings) == 0)
 {
 	if(!($switches['quiet']))
 	{
-		print("Error running - cannot find configuration.\n\n");
+		print("Error running - cannot find configuration.");
 	}
 	exit();
 }
