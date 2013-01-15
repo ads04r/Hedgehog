@@ -637,6 +637,85 @@ function build_dataset($dataset, $global_settings)
 				
 				// Add provenance
 				$graph = new Graphite();
+
+				$ttl = "";
+				if(array_key_exists('title', $cfg_properties))
+				{
+					$ttl .= "<" . $final_dump_url_ttl . "> <http://purl.org/dc/terms/title> \"" . str_replace("\"", "\\\"", $cfg_properties['title']) . "\" .\n";
+					$ttl .= "<" . $final_dump_url_rdf . "> <http://purl.org/dc/terms/title> \"" . str_replace("\"", "\\\"", $cfg_properties['title']) . "\" .\n";
+				}
+				if(array_key_exists('description', $cfg_properties))
+				{
+					$ttl .= "<" . $final_dump_url_ttl . "> <http://purl.org/dc/terms/description> \"" . str_replace("\"", "\\\"", $cfg_properties['description']) . "\" .\n";
+					$ttl .= "<" . $final_dump_url_rdf . "> <http://purl.org/dc/terms/description> \"" . str_replace("\"", "\\\"", $cfg_properties['description']) . "\" .\n";
+				}
+				if(array_key_exists('stars', $cfg_properties))
+				{
+					$ttl .= "<" . $final_dump_url_ttl . "> <http://purl.org/dc/terms/conformsTo> <http://purl.org/openorg/opendata-" . $cfg_properties['stars'] . "-star> .\n";
+					$ttl .= "<" . $final_dump_url_rdf . "> <http://purl.org/dc/terms/conformsTo> <http://purl.org/openorg/opendata-" . $cfg_properties['stars'] . "-star> .\n";
+				}
+				if(array_key_exists('license', $cfg_properties))
+				{
+					$licenses = $cfg_properties['license'];
+					if(is_array($licenses))
+					{
+						foreach($licenses as $license)
+						{
+							$ttl .= "<" . $final_dump_url_ttl . "> <http://purl.org/dc/terms/license> <" . $license . "> .\n";
+							$ttl .= "<" . $final_dump_url_rdf . "> <http://purl.org/dc/terms/license> <" . $license . "> .\n";
+						}
+					}
+				}
+				if(array_key_exists('publisheruri', $cfg_properties))
+				{
+					$ttl .= "<" . $final_dump_url_ttl . "> <http://purl.org/dc/terms/publisher> <" . $cfg_properties['publisheruri'] . "> .\n";
+					$ttl .= "<" . $final_dump_url_rdf . "> <http://purl.org/dc/terms/publisher> <" . $cfg_properties['publisheruri'] . "> .\n";
+					if(array_key_exists('publishername', $cfg_properties))
+					{
+						$ttl .= "<" . $cfg_properties['publisheruri'] . "> <http://www.w3.org/2000/01/rdf-schema#> \"" . str_replace("\"", "\\\"", $cfg_properties['publishername']) . "\" .";
+					}
+
+				}
+				if(array_key_exists('corrections', $cfg_properties))
+				{
+					if(preg_match("/.*@.*/", $cfg_properties['corrections']) > 0)
+					{
+						$ttl .= "<" . $final_dump_url_ttl . "> <http://purl.org/openorg/corrections> <mailto:" . $cfg_properties['corrections'] . "> .\n";
+						$ttl .= "<" . $final_dump_url_rdf . "> <http://purl.org/openorg/corrections> <mailto:" . $cfg_properties['corrections'] . "> .\n";
+					}
+					else
+					{
+						$ttl .= "<" . $final_dump_url_ttl . "> <http://purl.org/openorg/corrections> <" . $cfg_properties['corrections'] . "> .\n";
+						$ttl .= "<" . $final_dump_url_rdf . "> <http://purl.org/openorg/corrections> <" . $cfg_properties['corrections'] . "> .\n";
+					}
+				}
+				if(array_key_exists('endpoint', $cfg_properties))
+				{
+					$endpoints = $cfg_properties['endpoint'];
+					if(is_array($endpoints))
+					{
+						foreach($endpoints as $endpoint)
+						{
+							$ttl .= "<" . $final_dump_url_ttl . "> <http://rdfs.org/ns/void#sparqlEndpoint> <" . $endpoint . "> .\n";
+							$ttl .= "<" . $final_dump_url_rdf . "> <http://rdfs.org/ns/void#sparqlEndpoint> <" . $endpoint . "> .\n";
+						}
+					}
+				}
+				if(array_key_exists('authority', $cfg_properties))
+				{
+					if($cfg_properties['authority'])
+					{
+						$ttl .= "<" . $final_dump_url_ttl . "> a <http://purl.org/openorg/AuthoritativeDataset> .\n";
+						$ttl .= "<" . $final_dump_url_rdf . "> a <http://purl.org/openorg/AuthoritativeDataset> .\n";
+					}
+					else
+					{
+						$ttl .= "<" . $final_dump_url_ttl . "> a <http://purl.org/openorg/NonAuthoritativeDataset> .\n";
+						$ttl .= "<" . $final_dump_url_rdf . "> a <http://purl.org/openorg/NonAuthoritativeDataset> .\n";
+					}
+				}
+				$graph->addTurtle($global_settings['xml_base'], $ttl);
+
 				if(strcmp(substr($cfg_import, -4), ".rdf") == 0)
 				{
 					$main_import_format = "rdfxml";
@@ -676,6 +755,7 @@ function build_dataset($dataset, $global_settings)
 				}
 				if(strlen($ttl) > 0)
 				{
+
 					if(strcmp($main_import_format, "triples") == 0)
 					{
 						$ttl = "<" . $final_dump_url_ttl . ">\n";
