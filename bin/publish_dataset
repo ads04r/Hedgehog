@@ -79,7 +79,9 @@ function createSwitches()
 	if((array_key_exists("--quiet", $switches)) | (array_key_exists("-quiet", $switches)) | (array_key_exists("-q", $switches)))
 	{
 		$switches['quiet'] = true;
-	} else {
+	}
+	else
+	{
 		$switches['quiet'] = false;
 	}
 	
@@ -87,7 +89,9 @@ function createSwitches()
 	if(array_key_exists("--force", $switches))
 	{
 		$switches['force_import'] = true;
-	} else {
+	}
+	else
+	{
 		$switches['force_import'] = false;
 	}
 	
@@ -95,7 +99,9 @@ function createSwitches()
 	if(array_key_exists("--test", $switches))
 	{
 		$switches['test_only'] = true;
-	} else {
+	}
+	else
+	{
 		$switches['test_only'] = false;
 	}
 	
@@ -103,7 +109,9 @@ function createSwitches()
 	if(array_key_exists("--noimport", $switches))
 	{
 		$switches['skip_import'] = true;
-	} else {
+	}
+	else
+	{
 		$switches['skip_import'] = false;
 	}
 
@@ -111,7 +119,9 @@ function createSwitches()
 	if((array_key_exists("--help", $switches)) | (array_key_exists("-help", $switches)) | (array_key_exists("-h", $switches)) | (array_key_exists("-?", $switches)))
 	{
 		$switches['help'] = true;
-	} else {
+	}
+	else 
+	{
 		$switches['help'] = false;
 	}
 
@@ -131,7 +141,9 @@ function deltree($dir) // Delete a non-empty directory
 				if(!(is_dir($entry)))
 				{
 					unlink($dir . "/" . $entry);
-				} else {
+				}
+				else
+				{
 					if((!(strcmp($entry, ".."))) & (!(strcmp($entry, "."))))
 					{
 						deltree($dir . "/" . $entry);
@@ -182,7 +194,9 @@ function wget($url, $file)
 		fwrite($fp, curl_exec($ch));
 		fclose($fp);
 		curl_close($ch);
-	} else {
+	}
+	else
+	{
 		// Included for portability, some PHP installs aren't compiled with cURL
 		$data = implode("", file($url));
 		$fp = fopen($file, "w");
@@ -236,7 +250,9 @@ function import_4store($url, $graph, $triples)
 				}
 				$r[] = $success_report;
 				curl_close($ch);
-			} else {
+			}
+			else
+			{
 				$postdata = array('graph' => $graph, 'data' => $data, 'mime-type' => 'application/x-turtle');
 				$ch = curl_init();
 				curl_setopt($ch, CURLOPT_URL, $url);
@@ -249,7 +265,9 @@ function import_4store($url, $graph, $triples)
 			}
 			$i++;
 		}
-	} else {
+	}
+	else
+	{
 		$data = implode("\n", $triples);
 		$ch = curl_init();
 		curl_setopt($ch, CURLOPT_URL, $url . $graph);
@@ -266,19 +284,6 @@ function import_4store($url, $graph, $triples)
 	}
 	
 	return(implode("\n                  ", $r));
-}
-
-// This is necessary because the NTriples serializer in ARC2 is broken
-// It basically ensures that string literals are surrounded with " rather than '
-// Not sure on the official standard but 4store doesn't like the latter.
-function re_escape_triple($t)
-{
-	if(preg_match("/^(.*)<(.*)>([ \t]+)<(.*)>([ \t]+)'(.*)'([ \t]+)\.(.*)$/", $t, $m) > 0)
-	{
-		return($m[1] . "<" . $m[2] . "> <" . $m[4] . "> \"" . str_replace("\\'", "'", $m[6]) . "\" ." . $m[8]);
-	} else {
-		return($t);
-	}
 }
 
 // Function to check all files and data are present and correct
@@ -428,7 +433,7 @@ function display_help($system_name, $extended=0)
 	print("\n");
 }
 
-// Function to actually build a dataset
+// Function to actually build a dataset, returns a dictionary containing 'success' value, plus some provenance info.
 function build_dataset($dataset, $global_settings)
 {
 		// Process command line switches
@@ -449,6 +454,9 @@ function build_dataset($dataset, $global_settings)
 		$cfg_dir = $global_settings['cfg_base_dir'] . "/" . $dataset;
 		$dataset_path = $global_settings['cfg_base_dir'] . "/" . $dataset;
 		$dataset_cfg = $dataset_path . "/publish.json";
+
+		// Create success report for creating provenance
+		$download_report = array();
 		
 		// Read the configuration file
 		$cfg_obj = json_decode(implode("", file($dataset_cfg)), true);
@@ -491,7 +499,8 @@ function build_dataset($dataset, $global_settings)
 		
 		// Begin the downloading
 		chdir($target_dir_new);
-		$date_download_start = date("c");
+		$download_report['files'] = array();
+		$download_report['start'] = date("c");
 		foreach($cfg_downloads as $download)
 		{
 			$file_local = $download['localfile'];
@@ -501,8 +510,9 @@ function build_dataset($dataset, $global_settings)
 				print("     Downloading " . $file_local . "\n");
 			}
 			wget($file_remote, $file_local);
+			$download_report['files'][] = $download;
 		}
-		$date_download_end = date("c");
+		$download_report['end'] = date("c");
 	
 		// Install the required tools
 		chdir($target_dir_new);
@@ -585,7 +595,8 @@ function build_dataset($dataset, $global_settings)
 				fclose($fp);
 			}
 		}
-		
+		$return_value = array();
+		$return_value['success'] = true;
 		if($import_ok)
 		{
 			
@@ -597,7 +608,6 @@ function build_dataset($dataset, $global_settings)
 				{
 					print("       " . $command . "\n");
 				}
-				//shell_exec($command . " 2>&1");
 				shell_exec($command);
 			}
 			
@@ -608,302 +618,362 @@ function build_dataset($dataset, $global_settings)
 				{
 					print("     IMPORT FAILED ## Could not find specified import file '" . $cfg_import . "'\n");
 				}
-			} else {
-				
-				// Set some more variables
-				$final_dump_file_ttl = $dataset . ".ttl";
-				$final_dump_url_ttl = $global_settings['target_base_url'] . "/" . $target_path . "/" . $final_dump_file_ttl;
-				$final_dump_file_rdf = $dataset . ".rdf";
-				$final_dump_url_rdf = $global_settings['target_base_url'] . "/" . $target_path . "/" . $final_dump_file_rdf;
-				$ntriples_file = $global_settings['tmp_dir'] . "/" . $dataset . "-full.nt." . getmypid();
-				if(array_key_exists("import_url", $global_settings))
-				{
-					$import_url = $global_settings['import_url'];
-				} else {
-					$import_url = "";
-				}
-				$import_url_graph = $global_settings['xml_base'] . "/dataset/" . $subset_id . "/latest";
+				$return_value['success'] = false;
+			}
+		}
+		else
+		{
+			$return_value['success'] = false;
+		}
+		if($return_value['success'])
+		{
+			$return_value['download_report'] = $download_report;
+		}
+
+		return($return_value);
+}
+
+function publish_dataset($dataset, $global_settings, $download_info)
+{
+		// Process command line switches
+		$switches = createSwitches();
+		$quiet = $switches['quiet'];
+		$force_import = $switches['force_import'];
+		$skip_import = $switches['skip_import'];
+		$test_only = $switches['test_only'];
+
+		// Create directories for processing
+		$date = date("Y-m-d");
+		$path = $dataset;
+		$subset_id = $path;
+		$source_dir = $global_settings['source_base_dir'] . "/" . $subset_id;
+		$target_path = $path . "/" . $date;
+		$target_dir = $global_settings['target_base_dir'] . "/" . $target_path;
+		$target_dir_new = $global_settings['tmp_dir'] . "/" . $dataset . ".new." . getmypid(); // not in htdocs, may have secrets
+		$cfg_dir = $global_settings['cfg_base_dir'] . "/" . $dataset;
+		$dataset_path = $global_settings['cfg_base_dir'] . "/" . $dataset;
+		$dataset_cfg = $dataset_path . "/publish.json";
+
+		// Parse the download info - TODO - Clean this up, it's horrible.
+
+		$date_download_start = $download_info['start'];
+		$date_download_end = $download_info['end'];
 		
-				// Generate N-Triples file, using Rapper
-				$cmd_line = $global_settings['rapper_path'] . " -g -o ntriples " . $cfg_import . " 2>/dev/null ";
-				$rdf_data = shell_exec($cmd_line);
-				$triples = explode("\n", trim($rdf_data));
-				$trp = count($triples);
-				
-				if(!$quiet)
-				{
-					print("     " . $trp . " triples loaded, generating provenance\n");
-				}
-				
-				// Add provenance
-				$graph = new Graphite();
+		// Read the configuration file
+		$cfg_obj = json_decode(implode("", file($dataset_cfg)), true);
+		$cfg_properties = $cfg_obj['properties'];
+		if(array_key_exists("additional_triples", $cfg_obj))
+		{
+			$cfg_triples = $cfg_obj['additional_triples'];
+		} else {
+			$cfg_triples = $cfg_obj['triples'];
+		}
+		$cfg_downloads = $cfg_obj['downloads'];
+		$cfg_files = $cfg_obj['files'];
+		$cfg_tools = $cfg_obj['tools'];
+		$cfg_commands = $cfg_obj['commands'];
+		$cfg_commands_prepare = $cfg_commands['prepare'];
+		$cfg_commands_import = $cfg_commands['import'];
+		$cfg_import = $cfg_properties['import_file'];
+		$cfg_force = (!($cfg_properties['check_hashes']));
 
+		if(file_exists($cfg_import))
+		{
+			
+			chdir($target_dir_new);
+				
+			// Set some more variables
+			$final_dump_file_ttl = $dataset . ".ttl";
+			$final_dump_url_ttl = $global_settings['target_base_url'] . "/" . $target_path . "/" . $final_dump_file_ttl;
+			$final_dump_file_rdf = $dataset . ".rdf";
+			$final_dump_url_rdf = $global_settings['target_base_url'] . "/" . $target_path . "/" . $final_dump_file_rdf;
+			$ntriples_file = $global_settings['tmp_dir'] . "/" . $dataset . "-full.nt." . getmypid();
+			if(array_key_exists("import_url", $global_settings))
+			{
+				$import_url = $global_settings['import_url'];
+			} else {
+				$import_url = "";
+			}
+			$import_url_graph = $global_settings['xml_base'] . "/dataset/" . $subset_id . "/latest";
+	
+			// Generate N-Triples file, using Rapper
+			$cmd_line = $global_settings['rapper_path'] . " -g -o ntriples " . $cfg_import . " 2>/dev/null ";
+			$rdf_data = shell_exec($cmd_line);
+			$triples = explode("\n", trim($rdf_data));
+			$trp = count($triples);
+			
+			if(!$quiet)
+			{
+				print("     " . $trp . " triples loaded, generating provenance\n");
+			}
+			
+			// Add provenance
+			$graph = new Graphite();
+
+			$ttl = "";
+			if(array_key_exists('title', $cfg_properties))
+			{
+				$ttl .= "<" . $final_dump_url_ttl . "> <http://purl.org/dc/terms/title> \"" . str_replace("\"", "\\\"", $cfg_properties['title']) . "\" .\n";
+				$ttl .= "<" . $final_dump_url_rdf . "> <http://purl.org/dc/terms/title> \"" . str_replace("\"", "\\\"", $cfg_properties['title']) . "\" .\n";
+			}
+			if(array_key_exists('description', $cfg_properties))
+			{
+				$ttl .= "<" . $final_dump_url_ttl . "> <http://purl.org/dc/terms/description> \"" . str_replace("\"", "\\\"", $cfg_properties['description']) . "\" .\n";
+				$ttl .= "<" . $final_dump_url_rdf . "> <http://purl.org/dc/terms/description> \"" . str_replace("\"", "\\\"", $cfg_properties['description']) . "\" .\n";
+			}
+			if(array_key_exists('stars', $cfg_properties))
+			{
+				$ttl .= "<" . $final_dump_url_ttl . "> <http://purl.org/dc/terms/conformsTo> <http://purl.org/openorg/opendata-" . $cfg_properties['stars'] . "-star> .\n";
+				$ttl .= "<" . $final_dump_url_rdf . "> <http://purl.org/dc/terms/conformsTo> <http://purl.org/openorg/opendata-" . $cfg_properties['stars'] . "-star> .\n";
+			}
+			if(array_key_exists('license', $cfg_properties))
+			{
+				$licenses = $cfg_properties['license'];
+				if(is_array($licenses))
+				{
+					foreach($licenses as $license)
+					{
+						$ttl .= "<" . $final_dump_url_ttl . "> <http://purl.org/dc/terms/license> <" . $license . "> .\n";
+						$ttl .= "<" . $final_dump_url_rdf . "> <http://purl.org/dc/terms/license> <" . $license . "> .\n";
+					}
+				}
+			}
+			if(array_key_exists('publisheruri', $cfg_properties))
+			{
+				$ttl .= "<" . $final_dump_url_ttl . "> <http://purl.org/dc/terms/publisher> <" . $cfg_properties['publisheruri'] . "> .\n";
+				$ttl .= "<" . $final_dump_url_rdf . "> <http://purl.org/dc/terms/publisher> <" . $cfg_properties['publisheruri'] . "> .\n";
+				if(array_key_exists('publishername', $cfg_properties))
+				{
+					$ttl .= "<" . $cfg_properties['publisheruri'] . "> <http://www.w3.org/2000/01/rdf-schema#> \"" . str_replace("\"", "\\\"", $cfg_properties['publishername']) . "\" .";
+				}
+
+			}
+			if(array_key_exists('corrections', $cfg_properties))
+			{
+				if(preg_match("/.*@.*/", $cfg_properties['corrections']) > 0)
+				{
+					$ttl .= "<" . $final_dump_url_ttl . "> <http://purl.org/openorg/corrections> <mailto:" . $cfg_properties['corrections'] . "> .\n";
+					$ttl .= "<" . $final_dump_url_rdf . "> <http://purl.org/openorg/corrections> <mailto:" . $cfg_properties['corrections'] . "> .\n";
+				}
+				else
+				{
+					$ttl .= "<" . $final_dump_url_ttl . "> <http://purl.org/openorg/corrections> <" . $cfg_properties['corrections'] . "> .\n";
+					$ttl .= "<" . $final_dump_url_rdf . "> <http://purl.org/openorg/corrections> <" . $cfg_properties['corrections'] . "> .\n";
+				}
+			}
+			if(array_key_exists('endpoint', $cfg_properties))
+			{
+				$endpoints = $cfg_properties['endpoint'];
+				if(is_array($endpoints))
+				{
+					foreach($endpoints as $endpoint)
+					{
+						$ttl .= "<" . $final_dump_url_ttl . "> <http://rdfs.org/ns/void#sparqlEndpoint> <" . $endpoint . "> .\n";
+						$ttl .= "<" . $final_dump_url_rdf . "> <http://rdfs.org/ns/void#sparqlEndpoint> <" . $endpoint . "> .\n";
+					}
+				}
+			}
+			if(array_key_exists('authority', $cfg_properties))
+			{
+				if($cfg_properties['authority'])
+				{
+					$ttl .= "<" . $final_dump_url_ttl . "> a <http://purl.org/openorg/AuthoritativeDataset> .\n";
+					$ttl .= "<" . $final_dump_url_rdf . "> a <http://purl.org/openorg/AuthoritativeDataset> .\n";
+				}
+				else
+				{
+					$ttl .= "<" . $final_dump_url_ttl . "> a <http://purl.org/openorg/NonAuthoritativeDataset> .\n";
+					$ttl .= "<" . $final_dump_url_rdf . "> a <http://purl.org/openorg/NonAuthoritativeDataset> .\n";
+				}
+			}
+			$graph->addTurtle($global_settings['xml_base'], $ttl);
+
+			if(strcmp(substr($cfg_import, -4), ".rdf") == 0)
+			{
+				$main_import_format = "rdfxml";
+			} else {
+				$main_import_format = "triples";
+			}
+			foreach($cfg_downloads as $download)
+			{
 				$ttl = "";
-				if(array_key_exists('title', $cfg_properties))
-				{
-					$ttl .= "<" . $final_dump_url_ttl . "> <http://purl.org/dc/terms/title> \"" . str_replace("\"", "\\\"", $cfg_properties['title']) . "\" .\n";
-					$ttl .= "<" . $final_dump_url_rdf . "> <http://purl.org/dc/terms/title> \"" . str_replace("\"", "\\\"", $cfg_properties['title']) . "\" .\n";
-				}
-				if(array_key_exists('description', $cfg_properties))
-				{
-					$ttl .= "<" . $final_dump_url_ttl . "> <http://purl.org/dc/terms/description> \"" . str_replace("\"", "\\\"", $cfg_properties['description']) . "\" .\n";
-					$ttl .= "<" . $final_dump_url_rdf . "> <http://purl.org/dc/terms/description> \"" . str_replace("\"", "\\\"", $cfg_properties['description']) . "\" .\n";
-				}
-				if(array_key_exists('stars', $cfg_properties))
-				{
-					$ttl .= "<" . $final_dump_url_ttl . "> <http://purl.org/dc/terms/conformsTo> <http://purl.org/openorg/opendata-" . $cfg_properties['stars'] . "-star> .\n";
-					$ttl .= "<" . $final_dump_url_rdf . "> <http://purl.org/dc/terms/conformsTo> <http://purl.org/openorg/opendata-" . $cfg_properties['stars'] . "-star> .\n";
-				}
-				if(array_key_exists('license', $cfg_properties))
-				{
-					$licenses = $cfg_properties['license'];
-					if(is_array($licenses))
-					{
-						foreach($licenses as $license)
-						{
-							$ttl .= "<" . $final_dump_url_ttl . "> <http://purl.org/dc/terms/license> <" . $license . "> .\n";
-							$ttl .= "<" . $final_dump_url_rdf . "> <http://purl.org/dc/terms/license> <" . $license . "> .\n";
-						}
-					}
-				}
-				if(array_key_exists('publisheruri', $cfg_properties))
-				{
-					$ttl .= "<" . $final_dump_url_ttl . "> <http://purl.org/dc/terms/publisher> <" . $cfg_properties['publisheruri'] . "> .\n";
-					$ttl .= "<" . $final_dump_url_rdf . "> <http://purl.org/dc/terms/publisher> <" . $cfg_properties['publisheruri'] . "> .\n";
-					if(array_key_exists('publishername', $cfg_properties))
-					{
-						$ttl .= "<" . $cfg_properties['publisheruri'] . "> <http://www.w3.org/2000/01/rdf-schema#> \"" . str_replace("\"", "\\\"", $cfg_properties['publishername']) . "\" .";
-					}
-
-				}
-				if(array_key_exists('corrections', $cfg_properties))
-				{
-					if(preg_match("/.*@.*/", $cfg_properties['corrections']) > 0)
-					{
-						$ttl .= "<" . $final_dump_url_ttl . "> <http://purl.org/openorg/corrections> <mailto:" . $cfg_properties['corrections'] . "> .\n";
-						$ttl .= "<" . $final_dump_url_rdf . "> <http://purl.org/openorg/corrections> <mailto:" . $cfg_properties['corrections'] . "> .\n";
-					}
-					else
-					{
-						$ttl .= "<" . $final_dump_url_ttl . "> <http://purl.org/openorg/corrections> <" . $cfg_properties['corrections'] . "> .\n";
-						$ttl .= "<" . $final_dump_url_rdf . "> <http://purl.org/openorg/corrections> <" . $cfg_properties['corrections'] . "> .\n";
-					}
-				}
-				if(array_key_exists('endpoint', $cfg_properties))
-				{
-					$endpoints = $cfg_properties['endpoint'];
-					if(is_array($endpoints))
-					{
-						foreach($endpoints as $endpoint)
-						{
-							$ttl .= "<" . $final_dump_url_ttl . "> <http://rdfs.org/ns/void#sparqlEndpoint> <" . $endpoint . "> .\n";
-							$ttl .= "<" . $final_dump_url_rdf . "> <http://rdfs.org/ns/void#sparqlEndpoint> <" . $endpoint . "> .\n";
-						}
-					}
-				}
-				if(array_key_exists('authority', $cfg_properties))
-				{
-					if($cfg_properties['authority'])
-					{
-						$ttl .= "<" . $final_dump_url_ttl . "> a <http://purl.org/openorg/AuthoritativeDataset> .\n";
-						$ttl .= "<" . $final_dump_url_rdf . "> a <http://purl.org/openorg/AuthoritativeDataset> .\n";
-					}
-					else
-					{
-						$ttl .= "<" . $final_dump_url_ttl . "> a <http://purl.org/openorg/NonAuthoritativeDataset> .\n";
-						$ttl .= "<" . $final_dump_url_rdf . "> a <http://purl.org/openorg/NonAuthoritativeDataset> .\n";
-					}
-				}
+				$localfile_arr = explode("/", $download['localfile']);
+				$localfile = $localfile_arr[(count($localfile_arr) - 1)];
+				$ttl .= "<" . $global_settings['target_base_url'] . "/" . $target_path . "/" . $localfile . "#provenance> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/void/provenance/ns/ProvenanceEvent> ;\n";
+				$ttl .= " <http://purl.org/void/provenance/ns/processType> <http://id.southampton.ac.uk/ns/DownloadViaHTTP> ;";
+				$ttl .= " <http://purl.org/void/provenance/ns/resultingDataset> <" . $global_settings['target_base_url'] . "/" . $target_path . "/" . $localfile . "> ;";
+				$ttl .= " <http://purl.org/void/provenance/ns/sourceDataset> <" . $download['download'] . "> ;";
+				$ttl .= " <http://www.w3.org/2006/time#hasBeginning> \"" . $date_download_start . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> ;";
+				$ttl .= " <http://www.w3.org/2006/time#hasEnd> \"" . $date_download_end . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> ;";
 				$graph->addTurtle($global_settings['xml_base'], $ttl);
+			}
+			$ttl = "";
+			if(strcmp($main_import_format, "triples") == 0)
+			{
+				$ttl = "<" . $final_dump_url_rdf . "#provenance>\n";
+				$ttl .= " <http://purl.org/void/provenance/ns/processType> </ns/ConvertTurtleToRDFXML> ;\n";
+				$ttl .= " <http://purl.org/void/provenance/ns/resultingDataset> <" . $final_dump_url_rdf . "> ;\n";
+				$ttl .= " <http://purl.org/void/provenance/ns/sourceDataset> <" . $final_dump_url_ttl . "> ;\n";
+				$ttl .= " a <http://purl.org/void/provenance/ns/ProvenanceEvent> .\n";
+				$graph->addTurtle($global_settings['xml_base'], $ttl);
+			} elseif(strcmp($main_import_format, "rdfxml") == 0)
+			{
+				$ttl = "<" . $final_dump_url_ttl . "#provenance>\n";
+				$ttl .= " <http://purl.org/void/provenance/ns/processType> </ns/ConvertRDFXMLToTurtle> ;\n";
+				$ttl .= " <http://purl.org/void/provenance/ns/resultingDataset> <" . $final_dump_url_ttl . "> ;\n";
+				$ttl .= " <http://purl.org/void/provenance/ns/sourceDataset> <" . $final_dump_url_rdf . "> ;\n";
+				$ttl .= " a <http://purl.org/void/provenance/ns/ProvenanceEvent> .\n";
+				$graph->addTurtle($global_settings['xml_base'], $ttl);
+			}
+			if(strlen($ttl) > 0)
+			{
 
-				if(strcmp(substr($cfg_import, -4), ".rdf") == 0)
+				if(strcmp($main_import_format, "triples") == 0)
 				{
-					$main_import_format = "rdfxml";
+					$ttl = "<" . $final_dump_url_ttl . ">\n";
+					$ttl .= " <http://purl.org/dc/terms/created> \"" . date("c") . "\"^^<http://www.w3.org/2001/XMLSchema#date> ;\n";
+					$ttl .= " <http://purl.org/dc/terms/isPartOf> </dataset/" . $dataset . "> .\n";
+					$graph->addTurtle($global_settings['xml_base'], $ttl);
+					$ttl = "<" . $final_dump_url_ttl . "#provenance>\n";
+					$ttl .= " <http://purl.org/void/provenance/ns/resultingDataset> <" . $final_dump_url_ttl . "> ;\n";
 				} else {
-					$main_import_format = "triples";
+					$ttl = "<" . $final_dump_url_rdf . ">\n";
+					$ttl .= " <http://purl.org/dc/terms/created> \"" . date("c") . "\"^^<http://www.w3.org/2001/XMLSchema#date> ;\n";
+					$ttl .= " <http://purl.org/dc/terms/isPartOf> </dataset/" . $dataset . "> .\n";
+					$graph->addTurtle($global_settings['xml_base'], $ttl);
+					$ttl = "<" . $final_dump_url_rdf . "#provenance>\n";
+					$ttl .= " <http://purl.org/void/provenance/ns/resultingDataset> <" . $final_dump_url_rdf . "> ;\n";
 				}
 				foreach($cfg_downloads as $download)
 				{
-					$ttl = "";
 					$localfile_arr = explode("/", $download['localfile']);
 					$localfile = $localfile_arr[(count($localfile_arr) - 1)];
-					$ttl .= "<" . $global_settings['target_base_url'] . "/" . $target_path . "/" . $localfile . "#provenance> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/void/provenance/ns/ProvenanceEvent> ;\n";
-					$ttl .= " <http://purl.org/void/provenance/ns/processType> <http://id.southampton.ac.uk/ns/DownloadViaHTTP> ;";
-					$ttl .= " <http://purl.org/void/provenance/ns/resultingDataset> <" . $global_settings['target_base_url'] . "/" . $target_path . "/" . $localfile . "> ;";
-					$ttl .= " <http://purl.org/void/provenance/ns/sourceDataset> <" . $download['download'] . "> ;";
-					$ttl .= " <http://www.w3.org/2006/time#hasBeginning> \"" . $date_download_start . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> ;";
-					$ttl .= " <http://www.w3.org/2006/time#hasEnd> \"" . $date_download_end . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> ;";
-					$graph->addTurtle($global_settings['xml_base'], $ttl);
-				}
-				$ttl = "";
-				if(strcmp($main_import_format, "triples") == 0)
-				{
-					$ttl = "<" . $final_dump_url_rdf . "#provenance>\n";
-					$ttl .= " <http://purl.org/void/provenance/ns/processType> </ns/ConvertTurtleToRDFXML> ;\n";
-					$ttl .= " <http://purl.org/void/provenance/ns/resultingDataset> <" . $final_dump_url_rdf . "> ;\n";
-					$ttl .= " <http://purl.org/void/provenance/ns/sourceDataset> <" . $final_dump_url_ttl . "> ;\n";
-					$ttl .= " a <http://purl.org/void/provenance/ns/ProvenanceEvent> .\n";
-					$graph->addTurtle($global_settings['xml_base'], $ttl);
-				} elseif(strcmp($main_import_format, "rdfxml") == 0)
-				{
-					$ttl = "<" . $final_dump_url_ttl . "#provenance>\n";
-					$ttl .= " <http://purl.org/void/provenance/ns/processType> </ns/ConvertRDFXMLToTurtle> ;\n";
-					$ttl .= " <http://purl.org/void/provenance/ns/resultingDataset> <" . $final_dump_url_ttl . "> ;\n";
-					$ttl .= " <http://purl.org/void/provenance/ns/sourceDataset> <" . $final_dump_url_rdf . "> ;\n";
-					$ttl .= " a <http://purl.org/void/provenance/ns/ProvenanceEvent> .\n";
-					$graph->addTurtle($global_settings['xml_base'], $ttl);
-				}
-				if(strlen($ttl) > 0)
-				{
-
-					if(strcmp($main_import_format, "triples") == 0)
+					if(preg_match("/\\.(psv|tsv|csv|xls)$/", $localfile) > 0)
 					{
-						$ttl = "<" . $final_dump_url_ttl . ">\n";
-						$ttl .= " <http://purl.org/dc/terms/created> \"" . date("c") . "\"^^<http://www.w3.org/2001/XMLSchema#date> ;\n";
-						$ttl .= " <http://purl.org/dc/terms/isPartOf> </dataset/" . $dataset . "> .\n";
-						$graph->addTurtle($global_settings['xml_base'], $ttl);
-						$ttl = "<" . $final_dump_url_ttl . "#provenance>\n";
-						$ttl .= " <http://purl.org/void/provenance/ns/resultingDataset> <" . $final_dump_url_ttl . "> ;\n";
+						$ttl .= " <http://purl.org/void/provenance/ns/sourceDataset> <" . $global_settings['target_base_url'] . "/" . $target_path . "/" . $localfile . "> ;\n";
 					} else {
-						$ttl = "<" . $final_dump_url_rdf . ">\n";
-						$ttl .= " <http://purl.org/dc/terms/created> \"" . date("c") . "\"^^<http://www.w3.org/2001/XMLSchema#date> ;\n";
-						$ttl .= " <http://purl.org/dc/terms/isPartOf> </dataset/" . $dataset . "> .\n";
-						$graph->addTurtle($global_settings['xml_base'], $ttl);
-						$ttl = "<" . $final_dump_url_rdf . "#provenance>\n";
-						$ttl .= " <http://purl.org/void/provenance/ns/resultingDataset> <" . $final_dump_url_rdf . "> ;\n";
-					}
-					foreach($cfg_downloads as $download)
-					{
-						$localfile_arr = explode("/", $download['localfile']);
-						$localfile = $localfile_arr[(count($localfile_arr) - 1)];
-						if(preg_match("/\\.(psv|tsv|csv|xls)$/", $localfile) > 0)
-						{
-							$ttl .= " <http://purl.org/void/provenance/ns/sourceDataset> <" . $global_settings['target_base_url'] . "/" . $target_path . "/" . $localfile . "> ;\n";
-						} else {
-							if(preg_match("/\\.private$/", $localfile) == 0)
-							{
-								$ttl .= " </ns/processIncludedFile> <" . $global_settings['target_base_url'] . "/" . $target_path . "/" . $localfile . "> ;\n";
-							}
-						}
-					}
-					foreach($cfg_files as $file)
-					{
-						$localfile_arr = explode("/", $file);
-						$localfile = $localfile_arr[(count($localfile_arr) - 1)];
 						if(preg_match("/\\.private$/", $localfile) == 0)
 						{
 							$ttl .= " </ns/processIncludedFile> <" . $global_settings['target_base_url'] . "/" . $target_path . "/" . $localfile . "> ;\n";
 						}
 					}
-					foreach($cfg_tools as $file)
+				}
+				foreach($cfg_files as $file)
+				{
+					$localfile_arr = explode("/", $file);
+					$localfile = $localfile_arr[(count($localfile_arr) - 1)];
+					if(preg_match("/\\.private$/", $localfile) == 0)
 					{
-						if(preg_match("/\\.private$/", $file) == 0)
-						{
-							$ttl .= " </ns/processIncludedFile> <" . $global_settings['target_base_url'] . "/" . $target_path . "/" . $file . "> ;\n";
-						}
-					}
-					$ttl .= " <http://purl.org/void/provenance/ns/processType> </ns/ConvertAndPublishDataset> ;\n";
-					$ttl .= " a <http://purl.org/void/provenance/ns/ProvenanceEvent> ;\n";
-					$ttl .= " <http://www.w3.org/2006/time#hasBeginning> \"" . $date_download_start . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> ;\n";
-					$ttl .= " <http://www.w3.org/2006/time#hasEnd> \"" . date("c") . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> .\n";
-					$graph->addTurtle($global_settings['xml_base'], $ttl);
-				}
-				$prov_triples = explode("\n", trim($graph->serialize("NTriples")));
-				if(!$quiet)
-				{
-					print("     Provenance generated\n");
-				}
-				
-				// Combine with provenance and de-duplicate
-				
-				$triples_data = array_unique(array_merge($prov_triples, $triples));
-				
-				// This is a good place to stop if we don't actually want to do an import
-				
-				if($skip_import)
-				{
-					if(!$quiet)
-					{
-						print("     Processing succeeded, not importing due to command line switch.\n");
-					}
-					exit();
-				}
-				
-				// Dump to temporary n-triples file for processing with Rapper
-				
-				$fp = fopen($ntriples_file, "w");
-				foreach($triples_data as $t)
-				{
-					fwrite($fp, $t . "\n");
-				}
-				fclose($fp);
-			
-				// All triples generated, now dump the files to their textual representations...
-			
-				$cmd_line = $global_settings['rapper_path'] . " -i ntriples -o turtle " . $ntriples_file . " 2>/dev/null";
-				$fp = fopen($final_dump_file_ttl, "w");
-				fwrite($fp, shell_exec($cmd_line));
-				fclose($fp);
-				if(!$quiet)
-				{
-					print("     Created file " . $final_dump_file_ttl . "\n");
-				}
-				$cmd_line = $global_settings['rapper_path'] . " -i ntriples -o rdfxml " . $ntriples_file . " 2>/dev/null";
-				$fp = fopen($final_dump_file_rdf, "w");
-				fwrite($fp, shell_exec($cmd_line));
-				fclose($fp);
-				if(!$quiet)
-				{
-					print("     Created file " . $final_dump_file_rdf . "\n");
-				}
-				
-				// Delete the ntriples file as we don't need it any more
-				
-				unlink($ntriples_file);
-				
-				// We have everything we need to import, so we can go about preparing the raw data files for publishing
-				// Start by deleting anthing with .private as an extension.
-				if(!$quiet)
-				{
-					print("     Deleting .private files\n");
-				}			
-				$files = glob('./*.private');
-				foreach($files as $file){
-	  			if(is_file($file))
-	  			{
-	    				unlink($file); // delete file
-		    		}
-				}
-				
-				// Now copy the files from the hopper to their htdocs position
-				if(!$quiet)
-				{
-					print("     Copying raw data files to " . $target_dir . "\n");
-				}			
-				if(is_dir($target_dir)) 
-				{
-					deltree($target_dir);
-				}
-				mkdir($target_dir, 0755, true);
-				dupdir($target_dir_new, $target_dir);
-				
-				// And import!
-				if(strlen($import_url) > 0)
-				{
-					if(!$quiet)
-					{
-						print("     Importing... ");
-					}
-					$import_result = import_4store($import_url, $import_url_graph, $triples_data);
-					if(!$quiet)
-					{
-						print($import_result . "\n");
+						$ttl .= " </ns/processIncludedFile> <" . $global_settings['target_base_url'] . "/" . $target_path . "/" . $localfile . "> ;\n";
 					}
 				}
-	
+				foreach($cfg_tools as $file)
+				{
+					if(preg_match("/\\.private$/", $file) == 0)
+					{
+						$ttl .= " </ns/processIncludedFile> <" . $global_settings['target_base_url'] . "/" . $target_path . "/" . $file . "> ;\n";
+					}
+				}
+				$ttl .= " <http://purl.org/void/provenance/ns/processType> </ns/ConvertAndPublishDataset> ;\n";
+				$ttl .= " a <http://purl.org/void/provenance/ns/ProvenanceEvent> ;\n";
+				$ttl .= " <http://www.w3.org/2006/time#hasBeginning> \"" . $date_download_start . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> ;\n";
+				$ttl .= " <http://www.w3.org/2006/time#hasEnd> \"" . date("c") . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> .\n";
+				$graph->addTurtle($global_settings['xml_base'], $ttl);
+			}
+			$prov_triples = explode("\n", trim($graph->serialize("NTriples")));
+			if(!$quiet)
+			{
+				print("     Provenance generated\n");
 			}
 			
-		}
+			// Combine with provenance and de-duplicate
+				
+			$triples_data = array_unique(array_merge($prov_triples, $triples));
+			
+			// This is a good place to stop if we don't actually want to do an import
+				
+			if($skip_import)
+			{
+				if(!$quiet)
+				{
+					print("     Processing succeeded, not importing due to command line switch.\n");
+				}
+				exit();
+			}
+				
+			// Dump to temporary n-triples file for processing with Rapper
+				
+			$fp = fopen($ntriples_file, "w");
+			foreach($triples_data as $t)
+			{
+				fwrite($fp, $t . "\n");
+			}
+			fclose($fp);
+			
+			// All triples generated, now dump the files to their textual representations...
+			
+			$cmd_line = $global_settings['rapper_path'] . " -i ntriples -o turtle " . $ntriples_file . " 2>/dev/null";
+			$fp = fopen($final_dump_file_ttl, "w");
+			fwrite($fp, shell_exec($cmd_line));
+			fclose($fp);
+			if(!$quiet)
+			{
+				print("     Created file " . $final_dump_file_ttl . "\n");
+			}
+			$cmd_line = $global_settings['rapper_path'] . " -i ntriples -o rdfxml " . $ntriples_file . " 2>/dev/null";
+			$fp = fopen($final_dump_file_rdf, "w");
+			fwrite($fp, shell_exec($cmd_line));
+			fclose($fp);
+			if(!$quiet)
+			{
+				print("     Created file " . $final_dump_file_rdf . "\n");
+			}
+				
+			// Delete the ntriples file as we don't need it any more
+				
+			unlink($ntriples_file);
+				
+			// We have everything we need to import, so we can go about preparing the raw data files for publishing
+			// Start by deleting anthing with .private as an extension.
+			if(!$quiet)
+			{
+				print("     Deleting .private files\n");
+			}			
+			$files = glob('./*.private');
+			foreach($files as $file){
+  			if(is_file($file))
+  			{
+    				unlink($file); // delete file
+	    		}
+			}
+				
+			// Now copy the files from the hopper to their htdocs position
+			if(!$quiet)
+			{
+				print("     Copying raw data files to " . $target_dir . "\n");
+			}			
+			if(is_dir($target_dir)) 
+			{
+				deltree($target_dir);
+			}
+			mkdir($target_dir, 0755, true);
+			dupdir($target_dir_new, $target_dir);
+			
+			// And import!
+			if(strlen($import_url) > 0)
+			{
+				if(!$quiet)
+				{
+					print("     Importing... ");
+				}
+				$import_result = import_4store($import_url, $import_url_graph, $triples_data);
+				if(!$quiet)
+				{
+					print($import_result . "\n");
+				}
+			}
+
+		}			
 }
 
 // ================== Main script start here =================================
@@ -985,7 +1055,8 @@ if($switches['test_only'])
 	
 	foreach($datasets as $dataset)
 	{
-		build_dataset($dataset, $global_settings);
+		$retval = build_dataset($dataset, $global_settings);
+		publish_dataset($dataset, $global_settings, $retval['download_report']);
 	}
 }
 
