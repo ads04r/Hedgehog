@@ -922,12 +922,12 @@ if($switches['test_only'])
 			}
 			if((strlen($import_url) > 0) & (strlen($graph_uri) > 0))
 			{
-				if(!$quiet)
+				if(!$switches['quiet'])
 				{
 					print("     Importing... ");
 				}
-				$import_result = import_4store($import_url, $graph_uri, $triples_data);
-				if(!$quiet)
+				$import_result = import_4store($import_url, $graph_uri, $triples);
+				if(!$switches['quiet'])
 				{
 					print($import_result . "\n");
 				}
