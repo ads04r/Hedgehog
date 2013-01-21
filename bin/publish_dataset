@@ -366,7 +366,7 @@ function datasetMetadata($config_file, $uri)
 			$ttl[] = "<" . $uri . "> <http://purl.org/dc/terms/publisher> <" . $cfg_properties['publisheruri'] . "> .";
 			if(array_key_exists('publishername', $cfg_properties))
 			{
-				$ttl[] = "<" . $cfg_properties['publisheruri'] . "> <http://www.w3.org/2000/01/rdf-schema#> \"" . str_replace("\"", "\\\"", $cfg_properties['publishername']) . "\" .";
+				$ttl[] = "<" . $cfg_properties['publisheruri'] . "> <http://www.w3.org/2000/01/rdf-schema#label> \"" . str_replace("\"", "\\\"", $cfg_properties['publishername']) . "\" .";
 			}
 
 		}
