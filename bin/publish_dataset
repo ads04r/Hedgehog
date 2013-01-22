@@ -174,12 +174,12 @@ function check_settings($global_settings, $datasets)
 		$dataset_cfg = $dataset_path . "/publish.json";
 		if(!(file_exists($dataset_cfg)))
 		{
-			$errors[] = $dataset;
+			$errors[] = $dataset . " - publish.json does not exist";
 		}
 	}
 	if(count($errors) > 0)
 	{
-		$result .= "The following datasets cannot be imported: " . implode(", ", $errors) . ".\n";
+		$result .= "The following datasets cannot be imported:\n  * " . implode("\n  * ", $errors) . "\n";
 		$result .= "Configuration files do not appear to exist.\n\n";
 		return($result);
 	}
@@ -194,14 +194,49 @@ function check_settings($global_settings, $datasets)
 		if(!(is_array($json_obj))) {
 			$json_obj = array();
 		}
-		if((!(array_key_exists("properties", $json_obj))) | ((!(array_key_exists("additional_triples", $json_obj))) & (!(array_key_exists("triples", $json_obj)))) | (!(array_key_exists("downloads", $json_obj))) | (!(array_key_exists("tools", $json_obj))) | (!(array_key_exists("files", $json_obj))) | (!(array_key_exists("commands", $json_obj))))
+		if( json_last_error() == JSON_ERROR_DEPTH )
 		{
-			$errors[] = $dataset;
+			$errors[] =  $dataset.' - Maximum stack depth exceeded in JSON';
+			break;
+		}
+		if( json_last_error() == JSON_ERROR_CTRL_CHAR )
+		{
+			$errors []= $dataset.' - Unexpected control character found in JSON';
+			break;
+		}
+		if( json_last_error() == JSON_ERROR_SYNTAX )
+		{
+			$errors []= $dataset.' - Syntax error, malformed JSON';
+			break;
+		}
+		if(!(array_key_exists("properties", $json_obj)))
+		{
+			$errors[] = $dataset. " - missing 'properties' section in publish.json";
+		}
+		if((!(array_key_exists("additional_triples", $json_obj))) & (!(array_key_exists("triples", $json_obj))))
+		{
+			$errors[] = $dataset. " - missing 'additional_triples' AND 'triples' sections in publish.json";
+		}
+		if(!(array_key_exists("downloads", $json_obj)))
+		{
+			$errors[] = $dataset. " - missing 'downloads' section in publish.json";
+		}
+		if(!(array_key_exists("tools", $json_obj)))
+		{
+			$errors[] = $dataset. " - missing 'tools' section in publish.json";
+		}
+		if(!(array_key_exists("files", $json_obj)))
+		{
+			$errors[] = $dataset. " - missing 'files' section in publish.json";
+		}
+		if(!(array_key_exists("commands", $json_obj)))
+		{
+			$errors[] = $dataset. " - missing 'commands' section in publish.json";
 		}
 	}
 	if(count($errors) > 0)
 	{
-		$result .= "The following datasets cannot be imported: " . implode(", ", $errors) . ".\n";
+		$result .= "The following datasets cannot be imported:\n  * " . implode("\n  * ", $errors) . "\n";
 		$result .= "The configuration files appear to be invalid.\n\n";
 		return($result);
 	}
@@ -774,7 +809,7 @@ function make_rdf_file($path, $format, $ntriples_file, $rapper_path="", $quiet=f
 {
 		if(file_exists($rapper_path))
 		{
-			$cmd_line = $rapper_path . " -g -o " . $format . " " . $ntriples_file; // . " 2>/dev/null";
+			$cmd_line = $rapper_path . " -i ntriples -o " . $format . " " . $ntriples_file; // . " 2>/dev/null";
 			$fp = fopen($path, "w");
 			fwrite($fp, shell_exec($cmd_line));
 			fclose($fp);
