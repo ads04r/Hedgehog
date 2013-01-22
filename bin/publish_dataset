@@ -288,6 +288,31 @@ function check_settings($global_settings, $datasets)
 	return($result);
 }
 
+// A function to handle external processes better than shell_exec.
+
+function externalScript($command_line)
+{
+	$descriptorspec = array(
+		0 => array("pipe", "r"),  // stdin
+		1 => array("pipe", "w"),  // stdout
+		2 => array("pipe", "w"),  // stderr
+	);
+
+	$process = proc_open($command_line, $descriptorspec, $pipes);
+	$stdout = stream_get_contents($pipes[1]);
+	fclose($pipes[1]);
+	$stderr = stream_get_contents($pipes[2]);
+	fclose($pipes[2]);
+	$ret = proc_close($process);
+
+	$r = array();
+	$r['code'] = $ret;
+	$r['stdout'] = $stdout;
+	$r['stderr'] = $stderr;
+
+	return($r);
+}
+
 // Define a few file-related functions so we don't have to keep calling the shell.
 
 function deltree($dir) // Delete a non-empty directory
@@ -732,10 +757,22 @@ function build_dataset($dataset, $source_base_dir, $target_base_dir, $target_bas
 			{
 				// Import the triples to an array for passing back to the main script
 
+				if(!$quiet)
+				{
+					print("     Generating triples\n");
+				}
 				if(file_exists($rapper_path))
 				{
-					$cmd_line = $rapper_path . " -g -o ntriples " . $cfg_import; // . " 2>/dev/null ";
-					$rdf_data = shell_exec($cmd_line);
+					$cmd_line = $rapper_path . " -g -o ntriples " . $cfg_import;
+					$ret_val = externalScript($cmd_line);
+					$rdf_data = $ret_val['stdout'];
+					if(!$quiet)
+					{
+						if(strlen($ret_val['stderr']) > 0)
+						{
+							print("       " . trim(str_replace("\n", "\n       ", $ret_val['stderr'])) . "\n");
+						}
+					}
 					$triples = explode("\n", trim($rdf_data));
 				} else {
 					// TODO: Alternative Graphite-based import
@@ -809,9 +846,19 @@ function make_rdf_file($path, $format, $ntriples_file, $rapper_path="", $quiet=f
 {
 		if(file_exists($rapper_path))
 		{
-			$cmd_line = $rapper_path . " -i ntriples -o " . $format . " " . $ntriples_file; // . " 2>/dev/null";
+			$cmd_line = $rapper_path . " -i ntriples -o " . $format . " " . $ntriples_file;
+
+			$ret_val = externalScript($cmd_line);
+			$rdf_data = $ret_val['stdout'];
+			if(!$quiet)
+			{
+				if(strlen($ret_val['stderr']) > 0)
+				{
+					print("       " . trim(str_replace("\n", "\n       ", $ret_val['stderr'])) . "\n");
+				}
+			}
 			$fp = fopen($path, "w");
-			fwrite($fp, shell_exec($cmd_line));
+			fwrite($fp, $rdf_data);
 			fclose($fp);
 		}
 		else
