@@ -1111,7 +1111,7 @@ function display_help($system_name, $extended=0)
 {
 	print("publish_dataset\n");
 	print("---------------\n");
-	print("A tool for publishing datasets within the " . $system_name . " system.\n\n");
+	print("A tool for publishing datasets within the Hedgehog system.\n\n");
 	print("Usage: publish_dataset (options) dataset [dataset [dataset [...]]]\n\n");
 	if($extended == 1)
 	{
