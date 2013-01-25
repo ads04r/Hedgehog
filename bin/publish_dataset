@@ -1168,7 +1168,7 @@ foreach($datasets as $dataset)
 				print("     " . $graph_uri . "\n");
 				print("     Importing... ");
 			}
-			$import_result = import_4store($import_url, $graph_uri, $ds->triples);
+			$import_result = import_4store($import_url, $graph_uri, $ds->triples());
 			if(!$switches['quiet'])
 			{
 				print($import_result . "\n");
