@@ -733,7 +733,7 @@ class HedgehogDataset
 
 	public function triples()
 	{
-		$triples = array();
+		$triples = explode("\n", implode("", file($this->ntriples_file)));
 		return($triples);
 	}
 	
@@ -1168,7 +1168,7 @@ foreach($datasets as $dataset)
 				print("     " . $graph_uri . "\n");
 				print("     Importing... ");
 			}
-			$import_result = import_4store($import_url, $graph_uri, $triples);
+			$import_result = import_4store($import_url, $graph_uri, $ds->triples);
 			if(!$switches['quiet'])
 			{
 				print($import_result . "\n");
