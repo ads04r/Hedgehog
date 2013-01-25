@@ -1,45 +1,838 @@
 #!/usr/bin/php -q
 <?php
 
-// Settings functions
+// Dataset class
 
-function createSettings($settings_path)
+class HedgehogDataset
 {
+	private $global_settings;
+	private $dataset;
+	private $creation_time;
+	private $triples_file;
+	private $import_file_format;
+	private $hopper_path;
+	private $dumps_path;
+	private $remote_path;
+	private $triples_count;
+	private $config;
+	private $dumpfiles;
 	
-	$r = array();
-	if(is_dir($settings_path))
+	public $quiet;
+	public $force;
+
+	function createSettings($settings_path)
 	{
-		if ($handle = opendir($settings_path))
+		$r = array();
+		if(is_dir($settings_path))
 		{
-			while (false !== ($entry = readdir($handle)))
+			if ($handle = opendir($settings_path))
 			{
-				$full_path = $settings_path . "/" . $entry;
-				if(!(is_dir($full_path)))
+				while (false !== ($entry = readdir($handle)))
 				{
-					$lines = file($full_path);
-					foreach($lines as $line)
+					$full_path = $settings_path . "/" . $entry;
+					if(!(is_dir($full_path)))
 					{
-						$settingline = trim($line);
-						if(strlen($settingline) > 0)
+						$lines = file($full_path);
+						foreach($lines as $line)
 						{
-							if(strcmp(substr($settingline, 0, 1), "#") != 0)
+							$settingline = trim($line);
+							if(strlen($settingline) > 0)
 							{
-								$settingarray = explode(" ", $settingline, 2);
-								if(count($settingarray) == 2)
+								if(strcmp(substr($settingline, 0, 1), "#") != 0)
 								{
-									$k = $settingarray[0];
-									$r[$k] = $settingarray[1];
+									$settingarray = explode(" ", $settingline, 2);
+									if(count($settingarray) == 2)
+									{
+										$k = $settingarray[0];
+										$r[$k] = $settingarray[1];
+									}
 								}
 							}
 						}
 					}
 				}
-			}
-			closedir($handle);
-		}		
+				closedir($handle);
+			}		
+		}
+		$this->global_settings = $r;
 	}
-	return($r);
+
+	// Function to check all files and data are present and correct
+	private function checkSettings()
+	{
+		$global_settings = $this->global_settings;
+		$dataset = $this->dataset;
+		$result = "";
+		
+		// Check to see all the relevant directories exist
+		
+		$errors = array();
+		if(!(is_dir($global_settings['hashes_dir'])))
+		{
+			$errors[] = $global_settings['hashes_dir'];
+		}
+		if(!(is_dir($global_settings['dumps_dir'])))
+		{
+			$errors[] = $global_settings['dumps_dir'];
+		}
+		if(!(is_dir($global_settings['quills_dir'])))
+		{
+			$errors[] = $global_settings['quills_dir'];
+		}
+		if(!(is_dir($global_settings['tools_dir'])))
+		{
+			$errors[] = $global_settings['tools_dir'];
+		}
+		if(!(is_dir($global_settings['tmp_dir'])))
+		{
+			$errors[] = $global_settings['tmp_dir'];
+		}
+		if(count($errors) > 0)
+		{
+			$result .= "The following directories cannot be found: \n- " . implode("\n- ", $errors) . "\n\n";
+			return($result);
+		}
+		
+		// Check to see if the dataset directory exists
+		$errors = array();
+		$dataset_path = $global_settings['quills_dir'] . "/" . $dataset;
+		$dataset_cfg = $dataset_path . "/publish.json";
+		if(!(file_exists($dataset_cfg)))
+		{
+			$errors[] = $dataset . " - publish.json does not exist";
+		}
+		if(count($errors) > 0)
+		{
+			$result .= "The following datasets cannot be imported:\n  * " . implode("\n  * ", $errors) . "\n";
+			$result .= "Configuration files do not appear to exist.\n\n";
+			return($result);
+		}
+		
+		// Check to see if the config file is valid
+		$errors = array();
+		$dataset_path = $global_settings['quills_dir'] . "/" . $dataset;
+		$dataset_cfg = $dataset_path . "/publish.json";
+		@$json_obj = json_decode(implode("", file($dataset_cfg)), true);
+		if(!(is_array($json_obj))) {
+			$json_obj = array();
+		}
+		if( json_last_error() == JSON_ERROR_DEPTH )
+		{
+			$errors[] =  $dataset.' - Maximum stack depth exceeded in JSON';
+			break;
+		}
+		if( json_last_error() == JSON_ERROR_CTRL_CHAR )
+		{
+			$errors []= $dataset.' - Unexpected control character found in JSON';
+			break;
+		}
+		if( json_last_error() == JSON_ERROR_SYNTAX )
+		{
+			$errors []= $dataset.' - Syntax error, malformed JSON';
+			break;
+		}
+		if(!(array_key_exists("properties", $json_obj)))
+		{
+			$errors[] = $dataset. " - missing 'properties' section in publish.json";
+		}
+		if((!(array_key_exists("additional_triples", $json_obj))) & (!(array_key_exists("triples", $json_obj))))
+		{
+			$errors[] = $dataset. " - missing 'additional_triples' AND 'triples' sections in publish.json";
+		}
+		if(!(array_key_exists("downloads", $json_obj)))
+		{
+			$errors[] = $dataset. " - missing 'downloads' section in publish.json";
+		}
+		if(!(array_key_exists("tools", $json_obj)))
+		{
+			$errors[] = $dataset. " - missing 'tools' section in publish.json";
+		}
+		if(!(array_key_exists("files", $json_obj)))
+		{
+			$errors[] = $dataset. " - missing 'files' section in publish.json";
+		}
+		if(!(array_key_exists("commands", $json_obj)))
+		{
+			$errors[] = $dataset. " - missing 'commands' section in publish.json";
+		}
+		if(count($errors) > 0)
+		{
+			$result .= "The following datasets cannot be imported:\n  * " . implode("\n  * ", $errors) . "\n";
+			$result .= "The configuration files appear to be invalid.\n\n";
+			return($result);
+		}
+		
+		// Check that all the necessary files exist
+		$errors = array();
+		$dataset_path = $global_settings['quills_dir'] . "/" . $dataset;
+		$dataset_cfg = $dataset_path . "/publish.json";
+		@$json_obj = json_decode(implode("", file($dataset_cfg)), true);
+		$files_list = $json_obj['files'];
+		@chdir($dataset_path);
+		foreach($files_list as $file_req)
+		{
+			if(!(file_exists($file_req)))
+			{
+				$errors[] = $dataset;
+			}
+		}
+		if(count($errors) > 0)
+		{
+			$result .= "The following datasets cannot be imported: " . implode(", ", $errors) . ".\n";
+			$result .= "Files defined in the configuration file are not present.\n\n";
+			return($result);
+		}
+		
+		// Check that the dataset actually has an import instruction
+		$errors = array();
+		$dataset_path = $global_settings['quills_dir'] . "/" . $dataset;
+		$dataset_cfg = $dataset_path . "/publish.json";
+		@$json_obj = json_decode(implode("", file($dataset_cfg)), true);
+		$properties_list = $json_obj['properties'];
+		if(!(array_key_exists("import_file", $properties_list)))
+		{
+			$errors[] = $dataset;
+		}
+		if(count($errors) > 0)
+		{
+			$result .= "The following datasets cannot be imported: " . implode(", ", $errors) . ".\n";
+			$result .= "No import command can be found.\n\n";
+			return($result);
+		}
+
+		return($result);
+	}
+
+	public function prepare()
+	{
+		// Process command line switches
+		$quiet = $this->quiet;
+		$force_import = $this->force;
+
+		// Set up local variables
+		$dataset = $this->dataset;
+		@$quills_dir = $this->global_settings['quills_dir'];
+		@$target_base_url = $this->global_settings['target_base_url'];
+		@$tmp_dir = $this->global_settings['tmp_dir'];
+		@$rapper_path = $this->global_settings['rapper_path'];
+		@$tools_dir = $this->global_settings['tools_dir'];
+		@$hashes_dir = $this->global_settings['hashes_dir'];
+
+		// Create directories for processing
+		$date = date("Y-m-d");
+		$source_dir = $quills_dir . "/" . $dataset;
+		$target_dir = $this->hopper_path;
+		$dataset_cfg = $source_dir . "/publish.json";
+		$ntriples_file = $this->triples_file;
+		
+		// Ensure dump directory exists (if specified)
+		$dumps_dir = "";
+		@$dumps_dir = $this->global_settings['dumps_dir'];
+		$datestring = date("Y-m-d");
+		if(is_dir($dumps_dir))
+		{
+			$dumps_dir = $dumps_dir . "/" . $dataset;
+			if(!(is_dir($dumps_dir)))
+			{
+				mkdir($dumps_dir);
+			}
+			$dumps_dir = $dumps_dir . "/" . $datestring;
+			if(is_dir($dumps_dir))
+			{
+				deltree($dumps_dir);
+			}
+			mkdir($dumps_dir, 0755, true);
+			$this->dumps_path = $dumps_dir;
+		}
+		$this->remote_path = $this->global_settings['target_base_url'] . "/" . $dataset . "/" . $datestring;
+
+		// Read the configuration file
+		$cfg_obj = json_decode(implode("", file($dataset_cfg)), true);
+		$cfg_properties = $cfg_obj['properties'];
+		if(array_key_exists("additional_triples", $cfg_obj))
+		{
+			$cfg_triples = $cfg_obj['additional_triples'];
+		} else {
+			$cfg_triples = $cfg_obj['triples'];
+		}
+		$cfg_downloads = $cfg_obj['downloads'];
+		$cfg_files = $cfg_obj['files'];
+		$cfg_tools = $cfg_obj['tools'];
+		$cfg_commands = $cfg_obj['commands'];
+		$cfg_commands_prepare = $cfg_commands['prepare'];
+		$cfg_commands_import = $cfg_commands['import'];
+		$cfg_import = $cfg_properties['import_file'];
+		$cfg_force = (!($cfg_properties['check_hashes']));
+		$this->config = $cfg_obj;
+		
+		$force_import = ($force_import | $cfg_force);
+		$this->force = $force_import;
+		
+		// Show the current dataset, for debugging purposes.
+		if(!$quiet)
+		{
+			print(" - " . $dataset . "\n");
+		}
+		
+		// Copy contents of quill directory into hopper
+		if(is_dir($source_dir))
+		{
+			dupdir($source_dir, $target_dir);
+		}
+		
+		// Begin the downloading
+		chdir($target_dir);
+		$download_start_time = date("c");
+		foreach($cfg_downloads as $download)
+		{
+			$file_local = $download['localfile'];
+			$file_remote = $download['download'];
+			if(!$quiet)
+			{
+				print("     Downloading " . $file_local . "\n");
+			}
+			wget($file_remote, $file_local);
+		}
+		$download_end_time = date("c");
+	
+		// Install the required tools
+		chdir($target_dir);
+		foreach($cfg_tools as $tool)
+		{
+			if(!$quiet)
+			{
+				print("     Installing " . $tool . "\n");
+			}
+			$file_perms = fileperms($tools_dir . "/" . $tool);
+			copy($tools_dir . "/" . $tool, "./" . $tool);
+			chmod("./" . $tool, $file_perms);
+		}
+		
+		// Run preparation script(s)
+		chdir($target_dir);
+		foreach($cfg_commands_prepare as $command)
+		{
+			if(!$quiet)
+			{
+				print("       " . $command . "\n");
+			}
+			//shell_exec($command . " 2>&1");
+			shell_exec($command);
+		}
+	}
+	
+	// The following two functions handle hash checks. The hashCheck function isn't public because it has side effects, so
+	// it may return different results if called twice during the same process, which we don't really want. The changedFiles
+	// function remedies this by caching the value returned by hashCheck so it's only called once.
+	
+	public function changedFiles()
+	{
+		if(!(array_key_exists("hash_check", $this->global_settings)))
+		{
+			$this->global_settings['hash_check'] = $this->hashCheck();
+		}
+		return($this->global_settings['hash_check']);
+	}
+	
+	private function hashCheck()
+	{
+		$hashes_dir = "";
+		@$hashes_dir = $this->global_settings['hashes_dir'];
+		if(!(is_dir($hashes_dir)))
+		{
+			$ret_val = true; // If the hash directory is not defined or nonexistant, we say files have changed, to force a publish.
+		}
+		else
+		{
+			$hash_file = $hashes_dir . "/" . $this->dataset . ".hashes";
+			$quiet = $this->quiet;
+			if(!$quiet)
+			{
+				print("     Checking hashes\n");
+			}
+			// Load previous hashes
+			$old_hashes = array();
+			$ret_val = false;
+			if(file_exists($hash_file))
+			{
+				$f = file($hash_file);
+				foreach($f as $l)
+				{
+					if(strlen($l) > 0)
+					{
+						$a = explode(" ", $l, 2);
+						$k = trim($a[1]);
+						$v = trim($a[0]);
+						$old_hashes[$k] = $v;
+					}
+				}
+			} else {
+				$ret_val = true;
+			}
+			if ($handle = opendir("."))
+			{
+				$fp = fopen($hash_file, "w");
+				while (false !== ($entry = readdir($handle)))
+				{
+					if(!(is_dir($entry)))
+					{
+						$new_hash = md5_file("./" . $entry);
+						fwrite($fp, $new_hash . " " . $entry . "\n");
+						if(!(array_key_exists($entry, $old_hashes)))
+						{
+							$ret_val = true;
+							//print("       " . $entry . " added\n");
+						} else {
+							if(strcmp($new_hash, $old_hashes[$entry]) != 0)
+							{
+								$ret_val = true;
+								//print("       " . $entry . " changed\n");
+							}
+						}
+					}
+				}
+				fclose($fp);
+			}
+		}
+		return($ret_val);
+	}
+	
+	public function requestRdfDump($filename, $format)
+	{
+		$item = array();
+		$item['filename'] = $filename;
+		$item['format'] = $format;
+		$this->dumpfiles[] = $item;
+	}
+	
+	public function publish()
+	{
+
+		// Process command line switches
+		$quiet = $this->quiet;
+		$force_import = $this->force;
+
+		// Set up local variables
+		$dataset = $this->dataset;
+		@$target_base_url = $this->global_settings['target_base_url'];
+		@$rapper_path = $this->global_settings['rapper_path'];
+		$triples_count = 0;
+		
+		// Create directories for processing
+		$hopper_dir = $this->hopper_path;
+		$dumps_dir = $this->dumps_path;
+		$ntriples_file = $this->triples_file;
+		
+		// Read the configuration file
+		$cfg_obj = $this->config;
+		$cfg_properties = $cfg_obj['properties'];
+		if(array_key_exists("additional_triples", $cfg_obj))
+		{
+			$cfg_triples = $cfg_obj['additional_triples'];
+		} else {
+			$cfg_triples = $cfg_obj['triples'];
+		}
+		$cfg_downloads = $cfg_obj['downloads'];
+		$cfg_files = $cfg_obj['files'];
+		$cfg_tools = $cfg_obj['tools'];
+		$cfg_commands = $cfg_obj['commands'];
+		$cfg_commands_prepare = $cfg_commands['prepare'];
+		$cfg_commands_import = $cfg_commands['import'];
+		$cfg_import = $cfg_properties['import_file'];
+
+		// Generate import data if necessary.
+		chdir($hopper_dir);
+		foreach($cfg_commands_import as $command)
+		{
+			if(!$quiet)
+			{
+				print("       " . $command . "\n");
+			}
+			shell_exec($command);
+		}
+		
+		// Final check before importing - does the import file exist?
+		if(!(file_exists($cfg_import)))
+		{
+			if(!$quiet)
+			{
+				print("     IMPORT FAILED ## Could not find specified import file '" . $cfg_import . "'\n");
+			}
+		}
+		else
+		{
+			// Import the triples to an array for passing back to the main script
+
+			if(!$quiet)
+			{
+				print("     Generating triples\n");
+			}
+			if(file_exists($rapper_path))
+			{
+				$cmd_line = $rapper_path . " -g -o ntriples " . $cfg_import . " > " . $ntriples_file;
+				if(!$quiet)
+				{
+					print("       " . $cmd_line . "\n");
+				}
+				$ret_val = externalScript($cmd_line);
+				if(!$quiet)
+				{
+					if(strlen($ret_val['stderr']) > 0)
+					{
+						print("         " . trim(str_replace("\n", "\n         ", $ret_val['stderr'])) . "\n");
+					}
+				}
+				// Get the number of triples - bit hacky but does the job until I can think of something better.
+				// We could count the lines in the ntriples file, but that would take far too much time with massive datasets.
+				$m = array();
+				if(preg_match("/returned ([0-9]+) triples/", $ret_val['stderr'], $m) > 0)
+				{
+					$triples_count = (int) $m[1];
+				}
+				// Now use the same method to get the name of the parser used.
+				$m = array();
+				if(preg_match("/parser name \'([a-zA-Z0-9]+)\'/", $ret_val['stderr'], $m) > 0)
+				{
+					$ntriples_file_format = strtolower($m[1]);
+				}
+			} else {
+				// TODO: Alternative Graphite-based import
+			}
+		}
+		$this->import_file_format = $ntriples_file_format;
+
+		// We have everything we need to import, so we can go about preparing the raw data files for publishing
+		// Start by deleting anthing with .private as an extension.
+		if(!$quiet)
+		{
+			print("     Deleting .private files\n");
+		}			
+		$files = glob('./*.private');
+		foreach($files as $file){
+			if(is_file($file))
+			{
+					unlink($file); // delete file
+			}
+		}
+
+		// Add some provenance triples
+		if(!$quiet)
+		{
+			print("     Adding provenance triples\n");
+		}			
+		$triples = $this->getProvenanceTriples();
+		$triples_count = $triples_count + count($triples);
+		$this->triples_count = $triples_count;
+		$fp = fopen($ntriples_file, "a");
+		fwrite($fp, implode("\n", $triples) . "\n");
+		fclose($fp);
+		
+		// Produce dumps
+		if(file_exists($rapper_path))
+		{
+			foreach($this->dumpfiles as $dumpfile)
+			{
+				$localfile = $dumpfile['filename'];
+				$format = $dumpfile['format'];
+				if(!$quiet)
+				{
+					print("     Creating dump file " . $localfile . "\n");
+				}
+				$cmd_line = $rapper_path . " -i ntriples -o " . $format . " " . $ntriples_file . " > " . $hopper_dir . "/" . $localfile;
+				$ret_val = externalScript($cmd_line);
+			}
+		} else {
+			// TODO: Alternative Graphite-based export
+		}
+		
+		// Copy the hopper to the dumps file
+		dupdir($hopper_dir, $dumps_dir);
+		
+	}
+	
+	private function getProvenanceTriples()
+	{
+		$cfg_obj = $this->config;
+		$cfg_downloads = $cfg_obj['downloads'];
+		$cfg_files = $cfg_obj['files'];
+		$cfg_properties = $cfg_obj['properties'];
+		$cfg_import = $cfg_properties['import_file'];
+		$cfg_dumpfiles = $this->dumpfiles;
+		$remote_path = $this->remote_path;
+
+		$triples = array();
+		$datestring = date("c", $this->creation_time);
+		$datenow = date("c");
+		$localfile_arr = explode("/", $cfg_import);
+		$localfile = $localfile_arr[(count($localfile_arr) - 1)];
+		$base_uri = $remote_path . "/" . $localfile . "#provenance";
+		$triples[] = "<" . $base_uri . "> <http://purl.org/void/provenance/ns/processType> <http://id.southampton.ac.uk/ns/ConvertAndPublishDataset> .";
+		$triples[] = "<" . $base_uri . "> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/void/provenance/ns/ProvenanceEvent> .";
+		$triples[] = "<" . $base_uri . "> <http://www.w3.org/2006/time#hasBeginning> \"" . $datestring . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> .";
+		$triples[] = "<" . $base_uri . "> <http://www.w3.org/2006/time#hasEnd> \"" . $datenow . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> .";
+		$triples[] = "<" . $base_uri . "> <http://purl.org/void/provenance/ns/resultingDataset> <" . str_replace("#provenance", "", $base_uri) . "> .";
+		foreach($cfg_downloads as $download)
+		{
+			$localfile_arr = explode("/", $download['localfile']);
+			$localfile = $localfile_arr[(count($localfile_arr) - 1)];
+			$uri = $remote_path . "/" . $localfile . "#provenance";
+			$triples[] = "<" . $uri . "> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/void/provenance/ns/ProvenanceEvent> .";
+			$triples[] = "<" . $uri . "> <http://purl.org/void/provenance/ns/processType> <http://id.southampton.ac.uk/ns/DownloadViaHTTP> .";
+			$triples[] = "<" . $uri . "> <http://purl.org/void/provenance/ns/resultingDataset> <" . $remote_path . "/" . $localfile . "> .";
+			$triples[] = "<" . $uri . "> <http://purl.org/void/provenance/ns/sourceDataset> <" . $download['download'] . "> .";
+			$triples[] = "<" . $uri . "> <http://www.w3.org/2006/time#hasBeginning> \"" . $datestring . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> .";
+			$triples[] = "<" . $uri . "> <http://www.w3.org/2006/time#hasEnd> \"" . $datenow . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> .";
+			$triples[] = "<" . $base_uri . "> <http://purl.org/void/provenance/ns/sourceDataset> <" . $remote_path . "/" . $localfile . "> .";
+		}
+		foreach($cfg_files as $file)
+		{
+			$localfile_arr = explode("/", $file);
+			$localfile = $localfile_arr[(count($localfile_arr) - 1)];
+			$triples[] = "<" . $base_uri . "> <http://id.southampton.ac.uk/ns/processIncludedFile> <" . $remote_path . "/" . $localfile . "> .";
+		}
+		foreach($this->dumpfiles as $dumpfile)
+		{
+			$localfile = $dumpfile['filename'];
+			$format = $dumpfile['format'];
+			$uri = $remote_path . "/" . $localfile . "#provenance";
+			if(strcmp($base_uri, $remote_path . "/" . $localfile . "#provenance") != 0)
+			{
+				$triples[] = "<" . $uri . "> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/void/provenance/ns/ProvenanceEvent> .";
+				if(strcmp($this->import_file_format, "turtle") == 0)
+				{
+					if(strcmp($format, "rdfxml") == 0)
+					{
+						$triples[] = "<" . $uri . "> <http://purl.org/void/provenance/ns/processType> <http://id.southampton.ac.uk/ns/ConvertTurtleToRDFXML> .";
+					}
+					elseif(strcmp($format, "ntriples") == 0)
+					{
+						$triples[] = "<" . $uri . "> <http://purl.org/void/provenance/ns/processType> <http://id.southampton.ac.uk/ns/ConvertTurtleToNTriples> .";
+					}
+				}
+				elseif(strcmp($this->import_file_format, "rdfxml") == 0)
+				{
+					if(strcmp($format, "turtle") == 0)
+					{
+						$triples[] = "<" . $uri . "> <http://purl.org/void/provenance/ns/processType> <http://id.southampton.ac.uk/ns/ConvertRDFXMLToTurtle> .";
+					}
+					elseif(strcmp($format, "ntriples") == 0)
+					{
+						$triples[] = "<" . $uri . "> <http://purl.org/void/provenance/ns/processType> <http://id.southampton.ac.uk/ns/ConvertRDFXMLToNTriples> .";
+					}
+				}
+				elseif(strcmp($this->import_file_format, "ntriples") == 0)
+				{
+					if(strcmp($format, "rdfxml") == 0)
+					{
+						$triples[] = "<" . $uri . "> <http://purl.org/void/provenance/ns/processType> <http://id.southampton.ac.uk/ns/ConvertNTriplesToRDFXML> .";
+					}
+					elseif(strcmp($format, "turtle") == 0)
+					{
+						$triples[] = "<" . $uri . "> <http://purl.org/void/provenance/ns/processType> <http://id.southampton.ac.uk/ns/ConvertNTriplesToTurtle> .";
+					}
+				}
+				$triples[] = "<" . $uri . "> <http://purl.org/void/provenance/ns/resultingDataset> <" . $remote_path . "/" . $localfile . "> .";
+				$triples[] = "<" . $uri . "> <http://purl.org/void/provenance/ns/sourceDataset> <" . str_replace("#provenance", "", $base_uri) . "> .";
+				$triples[] = "<" . $uri . "> <http://www.w3.org/2006/time#hasBeginning> \"" . $datestring . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> .";
+				$triples[] = "<" . $uri . "> <http://www.w3.org/2006/time#hasEnd> \"" . $datenow . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> .";
+			}
+			$metadata = $this->createMetadata($remote_path . "/" . $localfile);
+			$triples = array_unique(array_merge($triples, $metadata));
+		}
+		
+		return($triples);
+	}
+
+	// Function to add meta-data to a dump file
+	private function createMetadata($uri)
+	{
+		// Read the configuration file
+		$cfg_obj = $this->config;
+		$cfg_properties = $cfg_obj['properties'];
+
+		$ttl = array();
+		if(array_key_exists('title', $cfg_properties))
+		{
+			$ttl[] = "<" . $uri . "> <http://purl.org/dc/terms/title> \"" . str_replace("\"", "\\\"", $cfg_properties['title']) . "\" .";
+		}
+		if(array_key_exists('description', $cfg_properties))
+		{
+			$ttl[] = "<" . $uri . "> <http://purl.org/dc/terms/description> \"" . str_replace("\"", "\\\"", $cfg_properties['description']) . "\" .";
+		}
+		if(array_key_exists('stars', $cfg_properties))
+		{
+			$ttl[] = "<" . $uri . "> <http://purl.org/dc/terms/conformsTo> <http://purl.org/openorg/opendata-" . $cfg_properties['stars'] . "-star> .";
+		}
+		if(array_key_exists('license', $cfg_properties))
+		{
+			$licenses = $cfg_properties['license'];
+			if(is_array($licenses))
+			{
+				foreach($licenses as $license)
+				{
+					$ttl[] = "<" . $uri . "> <http://purl.org/dc/terms/license> <" . $license . "> .";
+				}
+			}
+		}
+		if(array_key_exists('publisheruri', $cfg_properties))
+		{
+			$ttl[] = "<" . $uri . "> <http://purl.org/dc/terms/publisher> <" . $cfg_properties['publisheruri'] . "> .";
+			if(array_key_exists('publishername', $cfg_properties))
+			{
+				$ttl[] = "<" . $cfg_properties['publisheruri'] . "> <http://www.w3.org/2000/01/rdf-schema#label> \"" . str_replace("\"", "\\\"", $cfg_properties['publishername']) . "\" .";
+			}
+
+		}
+		if(array_key_exists('corrections', $cfg_properties))
+		{
+			if(preg_match("/.*@.*/", $cfg_properties['corrections']) > 0)
+			{
+				$ttl[] = "<" . $uri . "> <http://purl.org/openorg/corrections> <mailto:" . $cfg_properties['corrections'] . "> .";
+			}
+			else
+			{
+				$ttl[] = "<" . $uri . "> <http://purl.org/openorg/corrections> <" . $cfg_properties['corrections'] . "> .";
+			}
+		}
+		if(array_key_exists('endpoint', $cfg_properties))
+		{
+			$endpoints = $cfg_properties['endpoint'];
+			if(is_array($endpoints))
+			{
+				foreach($endpoints as $endpoint)
+				{
+					$ttl[] = "<" . $uri . "> <http://rdfs.org/ns/void#sparqlEndpoint> <" . $endpoint . "> .";
+				}
+			}
+		}
+		if(array_key_exists('authority', $cfg_properties))
+		{
+			if($cfg_properties['authority'])
+			{
+				$ttl[] = "<" . $uri . "> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/openorg/AuthoritativeDataset> .";
+			}
+			else
+			{
+				$ttl[] = "<" . $uri . "> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/openorg/NonAuthoritativeDataset> .";
+			}
+		}
+		
+		return($ttl);
+	}		
+
+	
+	public function name()
+	{
+		return($this->dataset);
+	}
+
+	public function count()
+	{
+		return($this->triples_count);
+	}
+
+	public function triples()
+	{
+		$triples = array();
+		return($triples);
+	}
+	
+	public function setting($settingName)
+	{
+		$s = $this->global_settings;
+		if(array_key_exists($settingName, $s))
+		{
+			return($s[$settingName]);
+		}
+		else
+		{
+			return("");
+		}
+	}
+	
+	public function __construct($dataset, $quiet = false, $force = false, $settings_path = "")
+	{
+
+		$this->creation_time = time();
+
+		// Create settings array
+
+		// The settings path defaults to the 'settings' directory which should be
+		// a sibling of the 'bin' directory in which the script is currently
+		// running. If this isn't good for the current set-up, use the
+		// environment variable HEDGEHOG_CONFIG to manually override.
+		
+		if(is_dir($settings_path))
+		{
+			$settings_dir = $settings_path;
+		}
+		else
+		{
+			@$settings_dir = $_SERVER['HEDGEHOG_CONFIG'];
+
+			if(!(is_dir($settings_dir)))
+			{
+				if(array_key_exists("_", $_SERVER))
+				{
+					$parse = explode("/", $_SERVER['_']);
+					$c = count($parse);
+					@$parse[$c - 1] = "";
+					@$parse[$c - 2] = "";
+					$settings_dir = "/" . trim(implode("/", $parse), "/") . "/settings";
+				} else {
+					$settings_dir = "";
+				}
+			}
+		}
+		
+		// Handle settings
+		$this->quiet = $quiet;
+		$this->force = $force;
+		$this->dataset = $dataset;
+		$this->triples_count = 0;
+		$this->createSettings($settings_dir);
+		$this->dumpfiles = array();
+		$errors = $this->checkSettings();
+
+		// Create temporary directories and files
+		$uid = getmypid();
+		@$tmp_dir = $this->global_settings['tmp_dir'];
+		$this->hopper_path = $tmp_dir . "/" . $dataset . ".new." . $uid;
+		$this->triples_file = $tmp_dir . "/" . $dataset . "-full.nt." . $uid;
+		// Remove triples file if it already exists
+		if(file_exists($this->triples_file))
+		{
+			unlink($this->triples_file);
+		}
+		// Prepare Working directory  (hopper)
+		if(is_dir($this->hopper_path)) 
+		{
+			deltree($this->hopper_path);
+		}
+		mkdir($this->hopper_path, 0755, true);
+		
+		if(!(is_dir($this->hopper_path)))
+		{
+			$errors .= "Cannot create temporary path " . $this->hopper_path . "\n";
+		}
+		
+		print($errors);
+	}
+	
+	public function __destruct()
+	{
+		if(file_exists($this->triples_file))
+		{
+			unlink($this->triples_file);
+		}
+		if(is_dir($this->hopper_path))
+		{
+			deltree($this->hopper_path);
+		}
+	}
 }
+
+// Command line handling functions
 
 function getDatasets()
 {
@@ -126,166 +919,6 @@ function createSwitches()
 	}
 
 	return($switches);
-}
-
-// Function to check all files and data are present and correct
-function check_settings($global_settings, $datasets)
-{
-	$result = "";
-	
-	// Check to see all the relevant directories exist
-	
-	$errors = array();
-	if(!(is_dir($global_settings['hashes_dir'])))
-	{
-		$errors[] = $global_settings['hashes_dir'];
-	}
-	if(!(is_dir($global_settings['source_base_dir'])))
-	{
-		$errors[] = $global_settings['source_base_dir'];
-	}
-	if(!(is_dir($global_settings['target_base_dir'])))
-	{
-		$errors[] = $global_settings['target_base_dir'];
-	}
-	if(!(is_dir($global_settings['cfg_base_dir'])))
-	{
-		$errors[] = $global_settings['cfg_base_dir'];
-	}
-	if(!(is_dir($global_settings['tools_dir'])))
-	{
-		$errors[] = $global_settings['tools_dir'];
-	}
-	if(!(is_dir($global_settings['tmp_dir'])))
-	{
-		$errors[] = $global_settings['tmp_dir'];
-	}
-	if(count($errors) > 0)
-	{
-		$result .= "The following directories cannot be found: \n- " . implode("\n- ", $errors) . "\n\n";
-		return($result);
-	}
-	
-	// Check to see if the dataset directories exist
-	$errors = array();
-	foreach($datasets as $dataset)
-	{
-		$dataset_path = $global_settings['cfg_base_dir'] . "/" . $dataset;
-		$dataset_cfg = $dataset_path . "/publish.json";
-		if(!(file_exists($dataset_cfg)))
-		{
-			$errors[] = $dataset . " - publish.json does not exist";
-		}
-	}
-	if(count($errors) > 0)
-	{
-		$result .= "The following datasets cannot be imported:\n  * " . implode("\n  * ", $errors) . "\n";
-		$result .= "Configuration files do not appear to exist.\n\n";
-		return($result);
-	}
-	
-	// Check to see if the config files are valid
-	$errors = array();
-	foreach($datasets as $dataset)
-	{
-		$dataset_path = $global_settings['cfg_base_dir'] . "/" . $dataset;
-		$dataset_cfg = $dataset_path . "/publish.json";
-		@$json_obj = json_decode(implode("", file($dataset_cfg)), true);
-		if(!(is_array($json_obj))) {
-			$json_obj = array();
-		}
-		if( json_last_error() == JSON_ERROR_DEPTH )
-		{
-			$errors[] =  $dataset.' - Maximum stack depth exceeded in JSON';
-			break;
-		}
-		if( json_last_error() == JSON_ERROR_CTRL_CHAR )
-		{
-			$errors []= $dataset.' - Unexpected control character found in JSON';
-			break;
-		}
-		if( json_last_error() == JSON_ERROR_SYNTAX )
-		{
-			$errors []= $dataset.' - Syntax error, malformed JSON';
-			break;
-		}
-		if(!(array_key_exists("properties", $json_obj)))
-		{
-			$errors[] = $dataset. " - missing 'properties' section in publish.json";
-		}
-		if((!(array_key_exists("additional_triples", $json_obj))) & (!(array_key_exists("triples", $json_obj))))
-		{
-			$errors[] = $dataset. " - missing 'additional_triples' AND 'triples' sections in publish.json";
-		}
-		if(!(array_key_exists("downloads", $json_obj)))
-		{
-			$errors[] = $dataset. " - missing 'downloads' section in publish.json";
-		}
-		if(!(array_key_exists("tools", $json_obj)))
-		{
-			$errors[] = $dataset. " - missing 'tools' section in publish.json";
-		}
-		if(!(array_key_exists("files", $json_obj)))
-		{
-			$errors[] = $dataset. " - missing 'files' section in publish.json";
-		}
-		if(!(array_key_exists("commands", $json_obj)))
-		{
-			$errors[] = $dataset. " - missing 'commands' section in publish.json";
-		}
-	}
-	if(count($errors) > 0)
-	{
-		$result .= "The following datasets cannot be imported:\n  * " . implode("\n  * ", $errors) . "\n";
-		$result .= "The configuration files appear to be invalid.\n\n";
-		return($result);
-	}
-	
-	// Check that all the necessary files exist
-	$errors = array();
-	foreach($datasets as $dataset)
-	{
-		$dataset_path = $global_settings['cfg_base_dir'] . "/" . $dataset;
-		$dataset_cfg = $dataset_path . "/publish.json";
-		@$json_obj = json_decode(implode("", file($dataset_cfg)), true);
-		$files_list = $json_obj['files'];
-		@chdir($dataset_path);
-		foreach($files_list as $file_req)
-		{
-			if(!(file_exists($file_req)))
-			{
-				$errors[] = $dataset;
-			}
-		}
-	}
-	if(count($errors) > 0)
-	{
-		$result .= "The following datasets cannot be imported: " . implode(", ", $errors) . ".\n";
-		$result .= "Files defined in the configuration file are not present.\n\n";
-		return($result);
-	}
-	
-	// Check that each dataset actually has an import instruction
-	$errors = array();
-	foreach($datasets as $dataset)
-	{
-		$dataset_path = $global_settings['cfg_base_dir'] . "/" . $dataset;
-		$dataset_cfg = $dataset_path . "/publish.json";
-		@$json_obj = json_decode(implode("", file($dataset_cfg)), true);
-		$properties_list = $json_obj['properties'];
-		if(!(array_key_exists("import_file", $properties_list)))
-		{
-			$errors[] = $dataset;
-		}
-	}
-	if(count($errors) > 0)
-	{
-		$result .= "The following datasets cannot be imported: " . implode(", ", $errors) . ".\n";
-		$result .= "No import command can be found.\n\n";
-		return($result);
-	}
-
-	return($result);
 }
 
 // A function to handle external processes better than shell_exec.
@@ -390,82 +1023,6 @@ function wget($url, $file)
 	}
 }
 
-// Function to add meta-data to a dump file
-function datasetMetadata($config_file, $uri)
-{
-		// Read the configuration file
-		$cfg_obj = json_decode(implode("", file($config_file)), true);
-		$cfg_properties = $cfg_obj['properties'];
-
-		$ttl = array();
-		if(array_key_exists('title', $cfg_properties))
-		{
-			$ttl[] = "<" . $uri . "> <http://purl.org/dc/terms/title> \"" . str_replace("\"", "\\\"", $cfg_properties['title']) . "\" .";
-		}
-		if(array_key_exists('description', $cfg_properties))
-		{
-			$ttl[] = "<" . $uri . "> <http://purl.org/dc/terms/description> \"" . str_replace("\"", "\\\"", $cfg_properties['description']) . "\" .";
-		}
-		if(array_key_exists('stars', $cfg_properties))
-		{
-			$ttl[] = "<" . $uri . "> <http://purl.org/dc/terms/conformsTo> <http://purl.org/openorg/opendata-" . $cfg_properties['stars'] . "-star> .";
-		}
-		if(array_key_exists('license', $cfg_properties))
-		{
-			$licenses = $cfg_properties['license'];
-			if(is_array($licenses))
-			{
-				foreach($licenses as $license)
-				{
-					$ttl[] = "<" . $uri . "> <http://purl.org/dc/terms/license> <" . $license . "> .";
-				}
-			}
-		}
-		if(array_key_exists('publisheruri', $cfg_properties))
-		{
-			$ttl[] = "<" . $uri . "> <http://purl.org/dc/terms/publisher> <" . $cfg_properties['publisheruri'] . "> .";
-			if(array_key_exists('publishername', $cfg_properties))
-			{
-				$ttl[] = "<" . $cfg_properties['publisheruri'] . "> <http://www.w3.org/2000/01/rdf-schema#label> \"" . str_replace("\"", "\\\"", $cfg_properties['publishername']) . "\" .";
-			}
-
-		}
-		if(array_key_exists('corrections', $cfg_properties))
-		{
-			if(preg_match("/.*@.*/", $cfg_properties['corrections']) > 0)
-			{
-				$ttl[] = "<" . $uri . "> <http://purl.org/openorg/corrections> <mailto:" . $cfg_properties['corrections'] . "> .";
-			}
-			else
-			{
-				$ttl[] = "<" . $uri . "> <http://purl.org/openorg/corrections> <" . $cfg_properties['corrections'] . "> .";
-			}
-		}
-		if(array_key_exists('endpoint', $cfg_properties))
-		{
-			$endpoints = $cfg_properties['endpoint'];
-			if(is_array($endpoints))
-			{
-				foreach($endpoints as $endpoint)
-				{
-					$ttl[] = "<" . $uri . "> <http://rdfs.org/ns/void#sparqlEndpoint> <" . $endpoint . "> .";
-				}
-			}
-		}
-		if(array_key_exists('authority', $cfg_properties))
-		{
-			if($cfg_properties['authority'])
-			{
-				$ttl[] = "<" . $uri . "> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/openorg/AuthoritativeDataset> .";
-			}
-			else
-			{
-				$ttl[] = "<" . $uri . "> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/openorg/NonAuthoritativeDataset> .";
-			}
-		}
-		
-		return($ttl);
-}		
 
 // 4Store Import
 function import_4store($url, $graph, $triples)
@@ -571,349 +1128,10 @@ function display_help($system_name, $extended=0)
 	print("\n");
 }
 
-// Function to actually build a dataset, returns the triples to be published
-function build_dataset($dataset, $source_base_dir, $target_base_dir, $target_base_url, $cfg_base_dir, $tools_dir, $hashes_dir, $tmp_dir, $rapper_path="")
-{
-		// Process command line switches
-		$switches = createSwitches();
-		$quiet = $switches['quiet'];
-		$force_import = $switches['force_import'];
-		$skip_import = $switches['skip_import'];
-		$test_only = $switches['test_only'];
-
-		// Create directories for processing
-		$date = date("Y-m-d");
-		$path = $dataset;
-		$subset_id = $path;
-		$source_dir = $source_base_dir . "/" . $subset_id;
-		$target_path = $path . "/" . $date;
-		$target_dir = $target_base_dir . "/" . $target_path;
-		$target_dir_new = $tmp_dir . "/" . $dataset . ".new." . getmypid(); // not in htdocs, may have secrets
-		$cfg_dir = $cfg_base_dir . "/" . $dataset;
-		$dataset_path = $cfg_base_dir . "/" . $dataset;
-		$dataset_cfg = $dataset_path . "/publish.json";
-
-		// Read the configuration file
-		$cfg_obj = json_decode(implode("", file($dataset_cfg)), true);
-		$cfg_properties = $cfg_obj['properties'];
-		if(array_key_exists("additional_triples", $cfg_obj))
-		{
-			$cfg_triples = $cfg_obj['additional_triples'];
-		} else {
-			$cfg_triples = $cfg_obj['triples'];
-		}
-		$cfg_downloads = $cfg_obj['downloads'];
-		$cfg_files = $cfg_obj['files'];
-		$cfg_tools = $cfg_obj['tools'];
-		$cfg_commands = $cfg_obj['commands'];
-		$cfg_commands_prepare = $cfg_commands['prepare'];
-		$cfg_commands_import = $cfg_commands['import'];
-		$cfg_import = $cfg_properties['import_file'];
-		$cfg_force = (!($cfg_properties['check_hashes']));
-		
-		// Show the current dataset, for debugging purposes.
-		if(!$quiet)
-		{
-			print(" - " . $dataset . "\n");
-		}
-	
-		// Prepare Working directory  (hopper)
-		if(is_dir($target_dir_new)) 
-		{
-			deltree($target_dir_new);
-		}
-		mkdir($target_dir_new, 0755, true);
-		// Copy contents of config directory into hopper
-		dupdir($cfg_dir, $target_dir_new);
-		
-		// Copy contents of static data directory into hopper
-		if(is_dir($source_dir))
-		{
-			dupdir($source_dir, $target_dir_new);
-		}
-		
-		// Begin the downloading
-		chdir($target_dir_new);
-		$download_start_time = date("c");
-		foreach($cfg_downloads as $download)
-		{
-			$file_local = $download['localfile'];
-			$file_remote = $download['download'];
-			if(!$quiet)
-			{
-				print("     Downloading " . $file_local . "\n");
-			}
-			wget($file_remote, $file_local);
-		}
-		$download_end_time = date("c");
-	
-		// Install the required tools
-		chdir($target_dir_new);
-		foreach($cfg_tools as $tool)
-		{
-			if(!$quiet)
-			{
-				print("     Installing " . $tool . "\n");
-			}
-			$file_perms = fileperms($tools_dir . "/" . $tool);
-			copy($tools_dir . "/" . $tool, "./" . $tool);
-			chmod("./" . $tool, $file_perms);
-		}
-		
-		// Run preparation script(s)
-		chdir($target_dir_new);
-		foreach($cfg_commands_prepare as $command)
-		{
-			if(!$quiet)
-			{
-				print("       " . $command . "\n");
-			}
-			//shell_exec($command . " 2>&1");
-			shell_exec($command);
-		}
-		
-		// Check hashes for new files
-		if($force_import | $cfg_force)
-		{
-			if(!$quiet)
-			{
-				print("     Skipping hash check, importing anyway\n");
-			}
-			$import_ok = true;
-		} else {
-			$import_ok = false;
-			$hash_file = $hashes_dir . "/" . $dataset . ".hashes";
-			if(!$quiet)
-			{
-				print("     Checking hashes\n");
-			}
-			// Load previous hashes
-			$old_hashes = array();
-			if(file_exists($hash_file))
-			{
-				$f = file($hash_file);
-				foreach($f as $l)
-				{
-					if(strlen($l) > 0)
-					{
-						$a = explode(" ", $l, 2);
-						$k = trim($a[1]);
-						$v = trim($a[0]);
-						$old_hashes[$k] = $v;
-					}
-				}
-			}
-			if ($handle = opendir("."))
-			{
-				$fp = fopen($hash_file, "w");
-				while (false !== ($entry = readdir($handle)))
-				{
-					if(!(is_dir($entry)))
-					{
-						$new_hash = md5_file("./" . $entry);
-						fwrite($fp, $new_hash . " " . $entry . "\n");
-						if(!(array_key_exists($entry, $old_hashes)))
-						{
-							$import_ok = true;
-							//print("       " . $entry . " added\n");
-						} else {
-							if(strcmp($new_hash, $old_hashes[$entry]) != 0)
-							{
-								$import_ok = true;
-								//print("       " . $entry . " changed\n");
-							}
-						}
-					}
-				}
-				fclose($fp);
-			}
-		}
-		$return_value = array();
-		if($import_ok)
-		{
-			
-			$triples = array();
-			
-			// Generate import data if necessary.
-			chdir($target_dir_new);
-			foreach($cfg_commands_import as $command)
-			{
-				if(!$quiet)
-				{
-					print("       " . $command . "\n");
-				}
-				shell_exec($command);
-			}
-			
-			// Final check before importing - does the import file exist?
-			if(!(file_exists($cfg_import)))
-			{
-				if(!$quiet)
-				{
-					print("     IMPORT FAILED ## Could not find specified import file '" . $cfg_import . "'\n");
-				}
-			}
-			else
-			{
-				// Import the triples to an array for passing back to the main script
-
-				if(!$quiet)
-				{
-					print("     Generating triples\n");
-				}
-				if(file_exists($rapper_path))
-				{
-					$cmd_line = $rapper_path . " -g -o ntriples " . $cfg_import;
-					$ret_val = externalScript($cmd_line);
-					$rdf_data = $ret_val['stdout'];
-					if(!$quiet)
-					{
-						if(strlen($ret_val['stderr']) > 0)
-						{
-							print("       " . trim(str_replace("\n", "\n       ", $ret_val['stderr'])) . "\n");
-						}
-					}
-					$triples = explode("\n", trim($rdf_data));
-				} else {
-					// TODO: Alternative Graphite-based import
-				}
-
-			}
-			
-			// Add some provenance triples
-			
-			$localfile_arr = explode("/", $cfg_import);
-			$localfile = $localfile_arr[(count($localfile_arr) - 1)];
-			$uri = $target_base_url . "/" . $target_path . "/" . $localfile . "#provenance";
-			$triples[] = "<" . $uri . "> <http://purl.org/void/provenance/ns/processType> </ns/ConvertAndPublishDataset> .";
-			$triples[] = "<" . $uri . "> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/void/provenance/ns/ProvenanceEvent> .";
-			$triples[] = "<" . $uri . "> <http://www.w3.org/2006/time#hasBeginning> \"" . $download_start_time . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> .";
-			$triples[] = "<" . $uri . "> <http://www.w3.org/2006/time#hasEnd> \"" . date("c") . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> .";
-			$import_local_file = $localfile;
-			
-			foreach($cfg_downloads as $download)
-			{
-				$localfile_arr = explode("/", $download['localfile']);
-				$localfile = $localfile_arr[(count($localfile_arr) - 1)];
-				$uri = $target_base_url . "/" . $target_path . "/" . $localfile . "#provenance";
-				$triples[] = "<" . $uri . "> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/void/provenance/ns/ProvenanceEvent> .";
-				$triples[] = "<" . $uri . "> <http://purl.org/void/provenance/ns/processType> <http://id.southampton.ac.uk/ns/DownloadViaHTTP> .";
-				$triples[] = "<" . $uri . "> <http://purl.org/void/provenance/ns/resultingDataset> <" . $target_base_url . "/" . $target_path . "/" . $localfile . "> .";
-				$triples[] = "<" . $uri . "> <http://purl.org/void/provenance/ns/sourceDataset> <" . $download['download'] . "> .";
-				$triples[] = "<" . $uri . "> <http://www.w3.org/2006/time#hasBeginning> \"" . $download_start_time . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> .";
-				$triples[] = "<" . $uri . "> <http://www.w3.org/2006/time#hasEnd> \"" . $download_end_time . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> .";
-			}
-			
-			// We have everything we need to import, so we can go about preparing the raw data files for publishing
-			// Start by deleting anthing with .private as an extension.
-			if(!$quiet)
-			{
-				print("     Deleting .private files\n");
-			}			
-			$files = glob('./*.private');
-			foreach($files as $file){
-  			if(is_file($file))
-  			{
-    				unlink($file); // delete file
-	    	}
-			}
-
-			// Now copy the files from the hopper to their htdocs position
-			if(!$quiet)
-			{
-				print("     Copying raw data files to " . $target_dir . "\n");
-			}			
-			if(is_dir($target_dir)) 
-			{
-				deltree($target_dir);
-			}
-			mkdir($target_dir, 0755, true);
-			dupdir($target_dir_new, $target_dir);
-
-		}
-
-		$return_value['file'] = "";
-		@$return_value['file'] = $import_local_file;
-		$return_value['path'] = $target_dir;
-		$return_value['subset'] = $subset_id;
-		$return_value['triples'] = array();
-		@$return_value['triples'] = $triples;
-
-		return($return_value);
-}
-
-function make_rdf_file($path, $format, $ntriples_file, $rapper_path="", $quiet=false)
-{
-		if(file_exists($rapper_path))
-		{
-			$cmd_line = $rapper_path . " -i ntriples -o " . $format . " " . $ntriples_file;
-
-			$ret_val = externalScript($cmd_line);
-			$rdf_data = $ret_val['stdout'];
-			if(!$quiet)
-			{
-				if(strlen($ret_val['stderr']) > 0)
-				{
-					print("       " . trim(str_replace("\n", "\n       ", $ret_val['stderr'])) . "\n");
-				}
-			}
-			$fp = fopen($path, "w");
-			fwrite($fp, $rdf_data);
-			fclose($fp);
-		}
-		else
-		{
-			// TODO: Alternative Graphite-based export
-		}
-		if(!$quiet)
-		{
-			print("     Created file " . $path . "\n");
-		}
-}
-
 // ================== Main script start here =================================
 
-// Create settings array
-
-// The settings path defaults to the 'settings' directory which should be
-// a sibling of the 'bin' directory in which the script is currently
-// running. If this isn't good for the current set-up, use the
-// environment variable HEDGEHOG_CONFIG to manually override.
-
-@$settings_dir = $_SERVER['HEDGEHOG_CONFIG'];
-
-if(!(is_dir($settings_dir)))
-{
-	if(array_key_exists("_", $_SERVER))
-	{
-		$parse = explode("/", $_SERVER['_']);
-		$c = count($parse);
-		@$parse[$c - 1] = "";
-		@$parse[$c - 2] = "";
-		$settings_dir = "/" . trim(implode("/", $parse), "/") . "/settings";
-	} else {
-		$settings_dir = "";
-	}
-}
-
-$global_settings = createSettings($settings_dir);
 $switches = createSwitches();
 $datasets = getDatasets();
-if(count($global_settings) == 0)
-{
-	if(!($switches['quiet']))
-	{
-		print("Error running - cannot find configuration.");
-	}
-	exit();
-}
-
-// Import Graphite and ARC2 if necessary
-
-if(array_key_exists("arc2_path", $global_settings) & array_key_exists("graphite_path", $global_settings)) {
-	include_once($global_settings['arc2_path']);
-	include_once($global_settings['graphite_path']);
-}
 
 // Display help page if requested, or if parameters are incorrect.
 if(($switches['help']) | (count($datasets) == 0))
@@ -927,97 +1145,37 @@ if(($switches['help']) | (count($datasets) == 0))
 	exit();
 }
 
-$check_output = check_settings($global_settings, $datasets);
-if(strlen($check_output) > 0)
+foreach($datasets as $dataset)
 {
-	if(!$switches['quiet'])
-	{
-		print($check_output);
-	}
-	exit();
-}
-
-if($switches['test_only'])
-{
-	if(!$switches['quiet'])
-	{
-		print("Preliminary checks all OK.\n");
-	}
-
-} else {
-
-	// OK, so preliminary checks are OK, let's start trying to do something...
+	$ds = new HedgehogDataset($dataset, $switches['quiet'], $switches['force_import']);
+	$ds->prepare();
 	
-	foreach($datasets as $dataset)
+	if($ds->changedFiles() | $ds->force) // Only continue if files unchanged, or publish explicitly forced
 	{
-		$ret = build_dataset($dataset, $global_settings['source_base_dir'], $global_settings['target_base_dir'], $global_settings['target_base_url'], $global_settings['cfg_base_dir'], $global_settings['tools_dir'], $global_settings['hashes_dir'], $global_settings['tmp_dir'], $global_settings['rapper_path']);
-		$triples = $ret['triples'];
-		$graph_uri = $global_settings['xml_base'] . "/dataset/" . $dataset . "/latest";
-		$path = rtrim($ret['path'], "/");
-		if(strcmp(substr($path, 0, strlen($global_settings['target_base_dir'])), $global_settings['target_base_dir']) == 0)
-		{
-			$data_path = trim(substr($path, strlen($global_settings['target_base_dir'])), "/");
-		}
-		else
-		{
-			$data_path = ".";
-		}
-		if(count($triples) > 0)
-		{
-			// Add metadata for the files to be created
-			
-			$cfg_file = $global_settings['cfg_base_dir'] . "/" . $dataset . "/publish.json";
-			$final_dump_file_ttl = $dataset . ".ttl";
-			$final_dump_url_ttl = $global_settings['target_base_url'] . "/" . $data_path . "/" . $final_dump_file_ttl;
-			$final_dump_file_rdf = $dataset . ".rdf";
-			$final_dump_url_rdf = $global_settings['target_base_url'] . "/" . $data_path . "/" . $final_dump_file_rdf;
-			$triples = array_merge($triples, datasetMetadata($cfg_file, $final_dump_url_ttl));
-			$triples = array_merge($triples, datasetMetadata($cfg_file, $final_dump_url_rdf));
-			
-			// Add some more provenance data
-			$triples[] = "<" . $final_dump_url_ttl . "> <http://purl.org/dc/terms/created> \"" . date("c") . "\"^^<http://www.w3.org/2001/XMLSchema#date> .";
-			$triples[] = "<" . $final_dump_url_ttl . "> <http://purl.org/dc/terms/isPartOf> </dataset/" . $dataset . "> .";
-			$triples[] = "<" . $final_dump_url_ttl . "#provenance> <http://purl.org/void/provenance/ns/resultingDataset> <" . $final_dump_url_ttl . "> .";
-			$triples[] = "<" . $final_dump_url_rdf . "> <http://purl.org/dc/terms/created> \"" . date("c") . "\"^^<http://www.w3.org/2001/XMLSchema#date> .";
-			$triples[] = "<" . $final_dump_url_rdf . "> <http://purl.org/dc/terms/isPartOf> </dataset/" . $dataset . "> .";
-			$triples[] = "<" . $final_dump_url_rdf . "#provenance> <http://purl.org/void/provenance/ns/resultingDataset> <" . $final_dump_url_rdf . "> .";
+		// Publish the dataset
+	
+		$ds->requestRdfDump($ds->name() . ".rdf", "rdfxml");
+		$ds->requestRdfDump($ds->name() . ".ttl", "turtle");
+		$ds->publish();
 
-			// De-dup triples
-			$triples = array_unique($triples);
-
-			// Create N-Triples file for publishing
-			$ntriples_file = $global_settings['tmp_dir'] . "/" . $dataset . "-full.nt." . getmypid();
-			$fp = fopen($ntriples_file, "w");
-			fwrite($fp, implode("\n", $triples) . "\n");
-			fclose($fp);
-			
-			// Build the necessary files
-			make_rdf_file($path . "/" . $dataset . ".ttl", "turtle", $ntriples_file, $global_settings['rapper_path'], $switches['quiet']);
-			make_rdf_file($path . "/" . $dataset . ".rdf", "rdfxml", $ntriples_file, $global_settings['rapper_path'], $switches['quiet']);
-
-			// Import to the triplestore
-			if(array_key_exists("import_url", $global_settings))
+		// Import to the triplestore
+		$import_url = $ds->setting("import_url");
+		$graph_uri = $ds->setting("xml_base") . "/dataset/" . $ds->name() . "/latest";
+		if((strlen($import_url) > 0) & (strlen($graph_uri) > 0))
+		{
+			if(!$switches['quiet'])
 			{
-				$import_url = $global_settings['import_url'];
-			} else {
-				$import_url = "";
+				print("     " . $graph_uri . "\n");
+				print("     Importing... ");
 			}
-			if((strlen($import_url) > 0) & (strlen($graph_uri) > 0))
+			$import_result = import_4store($import_url, $graph_uri, $triples);
+			if(!$switches['quiet'])
 			{
-				if(!$switches['quiet'])
-				{
-					print("     Importing... ");
-				}
-				$import_result = import_4store($import_url, $graph_uri, $triples);
-				if(!$switches['quiet'])
-				{
-					print($import_result . "\n");
-				}
+				print($import_result . "\n");
 			}
-
-			// And that's it!
-
 		}
+
+		
 	}
 }
 
