@@ -1107,7 +1107,7 @@ function import_4store($url, $graph, $triples)
 }
 
 // Function for displaying command line help.
-function display_help($system_name, $extended=0)
+function display_help($extended=0)
 {
 	print("publish_dataset\n");
 	print("---------------\n");
@@ -1138,9 +1138,9 @@ if(($switches['help']) | (count($datasets) == 0))
 {
 	if($switches['help'])
 	{
-		display_help($global_settings['system_name'], 1);
+		display_help(1);
 	} else {
-		display_help($global_settings['system_name']);
+		display_help();
 	}
 	exit();
 }
