@@ -733,7 +733,7 @@ class HedgehogDataset
 
 	public function triples()
 	{
-		$triples = explode("\n", implode("", file($this->ntriples_file)));
+		$triples = explode("\n", implode("", file($this->triples_file)));
 		return($triples);
 	}
 	
