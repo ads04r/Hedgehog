@@ -1,9 +1,8 @@
 Hedgehog RDF Publisher
 ======================
 
-By Ashley Smith and Christopher Gutteridge
-ads04r@ecs.soton.ac.uk, cjg@ecs.soton.ac.uk
-University of Southampton
+By Ashley Smith and Christopher Gutteridge, University of Southampton
+
 http://data.southampton.ac.uk/
 
 Hedgehog is a system for publishing datasets in RDF. The core system runs
@@ -15,3 +14,7 @@ Examples include
 * Importing the triples into a triplestore such as 4store
 * Uploading the data documents to a server for publishing on the web
 
+License
+-------
+This work is released under the GNU General Public License version 2.0
+http://www.gnu.org/licenses/gpl-2.0.html
