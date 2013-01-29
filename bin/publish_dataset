@@ -119,41 +119,42 @@ class HedgehogDataset
 		if( json_last_error() == JSON_ERROR_DEPTH )
 		{
 			$errors[] =  $dataset.' - Maximum stack depth exceeded in JSON';
-			break;
 		}
 		if( json_last_error() == JSON_ERROR_CTRL_CHAR )
 		{
 			$errors []= $dataset.' - Unexpected control character found in JSON';
-			break;
 		}
 		if( json_last_error() == JSON_ERROR_SYNTAX )
 		{
 			$errors []= $dataset.' - Syntax error, malformed JSON';
-			break;
 		}
-		if(!(array_key_exists("properties", $json_obj)))
+		if( !count( $errors ))
 		{
-			$errors[] = $dataset. " - missing 'properties' section in publish.json";
-		}
-		if((!(array_key_exists("additional_triples", $json_obj))) & (!(array_key_exists("triples", $json_obj))))
-		{
-			$errors[] = $dataset. " - missing 'additional_triples' AND 'triples' sections in publish.json";
-		}
-		if(!(array_key_exists("downloads", $json_obj)))
-		{
-			$errors[] = $dataset. " - missing 'downloads' section in publish.json";
-		}
-		if(!(array_key_exists("tools", $json_obj)))
-		{
-			$errors[] = $dataset. " - missing 'tools' section in publish.json";
-		}
-		if(!(array_key_exists("files", $json_obj)))
-		{
-			$errors[] = $dataset. " - missing 'files' section in publish.json";
-		}
-		if(!(array_key_exists("commands", $json_obj)))
-		{
-			$errors[] = $dataset. " - missing 'commands' section in publish.json";
+			# only look for errors inside the JSON if the JSON was parsed OK
+			if(!(array_key_exists("properties", $json_obj)))
+			{
+				$errors[] = $dataset. " - missing 'properties' section in publish.json";
+			}
+			if((!(array_key_exists("additional_triples", $json_obj))) & (!(array_key_exists("triples", $json_obj))))
+			{
+				$errors[] = $dataset. " - missing 'additional_triples' AND 'triples' sections in publish.json";
+			}
+			if(!(array_key_exists("downloads", $json_obj)))
+			{
+				$errors[] = $dataset. " - missing 'downloads' section in publish.json";
+			}
+			if(!(array_key_exists("tools", $json_obj)))
+			{
+				$errors[] = $dataset. " - missing 'tools' section in publish.json";
+			}
+			if(!(array_key_exists("files", $json_obj)))
+			{
+				$errors[] = $dataset. " - missing 'files' section in publish.json";
+			}
+			if(!(array_key_exists("commands", $json_obj)))
+			{
+				$errors[] = $dataset. " - missing 'commands' section in publish.json";
+			}
 		}
 		if(count($errors) > 0)
 		{
