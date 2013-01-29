@@ -19,6 +19,8 @@ class HedgehogDataset
 	
 	public $quiet;
 	public $force;
+	public $errors;
+	public $status;
 
 	function createSettings($settings_path)
 	{
@@ -819,7 +821,19 @@ class HedgehogDataset
 			$errors .= "Cannot create temporary path " . $this->hopper_path . "\n";
 		}
 		
-		print($errors);
+		if(!$quiet)
+		{
+			print($errors);
+		}
+		$this->errors = $errors;
+		if(strlen($errors) == 0)
+		{
+			$this->status = 0;
+		}
+		else
+		{
+			$this->status = 1;
+		}
 	}
 	
 	public function __destruct()
@@ -1151,34 +1165,41 @@ if(($switches['help']) | (count($datasets) == 0))
 foreach($datasets as $dataset)
 {
 	$ds = new HedgehogDataset($dataset, $switches['quiet'], $switches['force_import']);
-	$ds->prepare();
-	
-	if($ds->changedFiles() | $ds->force) // Only continue if files unchanged, or publish explicitly forced
+	if($ds->status == 0)
 	{
-		// Publish the dataset
-	
-		$ds->requestRdfDump($ds->name() . ".rdf", "rdfxml");
-		$ds->requestRdfDump($ds->name() . ".ttl", "turtle");
-		$ds->publish();
-
-		// Import to the triplestore
-		$import_url = $ds->setting("import_url");
-		$graph_uri = $ds->setting("xml_base") . "/dataset/" . $ds->name() . "/latest";
-		if((strlen($import_url) > 0) & (strlen($graph_uri) > 0))
-		{
-			if(!$switches['quiet'])
-			{
-				print("     " . $graph_uri . "\n");
-				print("     Importing... ");
-			}
-			$import_result = import_4store($import_url, $graph_uri, $ds->triples());
-			if(!$switches['quiet'])
-			{
-				print($import_result . "\n");
-			}
-		}
-
+		$ds->prepare();
 		
+		if($ds->changedFiles() | $ds->force) // Only continue if files unchanged, or publish explicitly forced
+		{
+			// Publish the dataset
+		
+			$ds->requestRdfDump($ds->name() . ".rdf", "rdfxml");
+			$ds->requestRdfDump($ds->name() . ".ttl", "turtle");
+			$ds->publish();
+
+			// Import to the triplestore
+			$import_url = $ds->setting("import_url");
+			$graph_uri = $ds->setting("xml_base") . "/dataset/" . $ds->name() . "/latest";
+			if((strlen($import_url) > 0) & (strlen($graph_uri) > 0))
+			{
+				if(!$switches['quiet'])
+				{
+					print("     " . $graph_uri . "\n");
+					print("     Importing... ");
+				}
+				$import_result = import_4store($import_url, $graph_uri, $ds->triples());
+				if(!$switches['quiet'])
+				{
+					print($import_result . "\n");
+				}
+			}
+
+			
+		}
+	}
+	else
+	{
+		exit();
 	}
 }
 
