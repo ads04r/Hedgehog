@@ -538,7 +538,9 @@ class HedgehogDataset
 				{
 					print("     Creating dump file " . $localfile . "\n");
 				}
-				$cmd_line = $rapper_path . " -i ntriples -o " . $format . " " . $ntriples_file . " > " . $hopper_dir . "/" . $localfile;
+				$filename_parse = explode("/", trim($cfg_import, "/"));
+				$cfg_import_localname = $filename_parse[(count($filename_parse) - 1)];
+				$cmd_line = $rapper_path . " -i ntriples -o " . $format . " " . $ntriples_file . " | sed s#file\\:[^\\\"]*" . $cfg_import_localname . "## > " . $hopper_dir . "/" . $localfile ;
 				$ret_val = externalScript($cmd_line);
 			}
 		} else {
