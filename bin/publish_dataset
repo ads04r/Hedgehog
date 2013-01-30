@@ -343,60 +343,75 @@ class HedgehogDataset
 		@$hashes_dir = $this->global_settings['hashes_dir'];
 		if(!(is_dir($hashes_dir)))
 		{
-			$ret_val = true; // If the hash directory is not defined or nonexistant, we say files have changed, to force a publish.
+			// If the hash directory is not defined or nonexistant, we say files have changed, to force a publish.
+			return true; 
 		}
-		else
+		
+		$hash_file = $hashes_dir . "/" . $this->dataset . ".hashes";
+		$quiet = $this->quiet;
+		if(!$quiet)
 		{
-			$hash_file = $hashes_dir . "/" . $this->dataset . ".hashes";
-			$quiet = $this->quiet;
-			if(!$quiet)
+			print("     Checking hashes\n");
+		}
+		// Load previous hashes
+		$old_hashes = array();
+		$ret_val = false;
+		
+		if(!(file_exists($hash_file)))
+		{
+			// Hash file doesn't exist, this must be the first publish.
+			return true;
+		}
+
+		$f = file($hash_file);
+		foreach($f as $l)
+		{
+			if(strlen($l) > 0)
 			{
-				print("     Checking hashes\n");
-			}
-			// Load previous hashes
-			$old_hashes = array();
-			$ret_val = false;
-			if(file_exists($hash_file))
-			{
-				$f = file($hash_file);
-				foreach($f as $l)
-				{
-					if(strlen($l) > 0)
-					{
-						$a = explode(" ", $l, 2);
-						$k = trim($a[1]);
-						$v = trim($a[0]);
-						$old_hashes[$k] = $v;
-					}
-				}
-			} else {
-				$ret_val = true;
-			}
-			if ($handle = opendir("."))
-			{
-				$fp = fopen($hash_file, "w");
-				while (false !== ($entry = readdir($handle)))
-				{
-					if(!(is_dir($entry)))
-					{
-						$new_hash = md5_file("./" . $entry);
-						fwrite($fp, $new_hash . " " . $entry . "\n");
-						if(!(array_key_exists($entry, $old_hashes)))
-						{
-							$ret_val = true;
-							//print("       " . $entry . " added\n");
-						} else {
-							if(strcmp($new_hash, $old_hashes[$entry]) != 0)
-							{
-								$ret_val = true;
-								//print("       " . $entry . " changed\n");
-							}
-						}
-					}
-				}
-				fclose($fp);
+				$a = explode(" ", $l, 2);
+				$k = trim($a[1]);
+				$v = trim($a[0]);
+				$old_hashes[$k] = $v;
 			}
 		}
+
+		if ($handle = opendir("."))
+		{
+			$fp = fopen($hash_file, "w");
+			while (false !== ($entry = readdir($handle)))
+			{
+				if(!(is_dir($entry)))
+				{
+					$new_hash = md5_file("./" . $entry);
+					fwrite($fp, $new_hash . " " . $entry . "\n");
+					if(!(array_key_exists($entry, $old_hashes)))
+					{
+						// Hash doesn't exist, new file.
+						fclose($fp);
+						return true;
+					}
+					if(strcmp($new_hash, $old_hashes[$entry]) != 0)
+					{
+						// Hash is different, changed file.
+						fclose($fp);
+						return true;
+					}
+				}
+			}
+			fclose($fp);
+		}
+		
+		return false;
+	}
+	
+	private function hashCheck2()
+	{
+
+	
+		
+
+
+		
 		return($ret_val);
 	}
 	
