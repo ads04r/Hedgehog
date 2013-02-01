@@ -295,6 +295,12 @@ class HedgehogDataset
 				print("     Downloading " . $file_local . "\n");
 			}
 			wget($file_remote, $file_local);
+			if(!(file_exists($file_local)))
+			{
+				$this->errors = $file_remote . " failed to download properly\n";
+				$this->status = -1;
+				return -1;
+			}
 		}
 		$download_end_time = date("c");
 	
@@ -319,9 +325,20 @@ class HedgehogDataset
 			{
 				print("       " . $command . "\n");
 			}
-			//shell_exec($command . " 2>&1");
-			shell_exec($command);
+			$ret_val = externalScript($command);
+			if($ret_val['code'] != 0)
+			{
+				if(!$quiet)
+				{
+					print("       COMMAND FAILED, exiting.\n");
+				}
+				$this->status = $code;
+				$this->errors = $command . " returned a nonzero value.\n";
+				return $code;
+			}
 		}
+		$this->status = 0;
+		return 0;
 	}
 	
 	// The following two functions handle hash checks. The hashCheck function isn't public because it has side effects, so
@@ -402,17 +419,6 @@ class HedgehogDataset
 		}
 		
 		return false;
-	}
-	
-	private function hashCheck2()
-	{
-
-	
-		
-
-
-		
-		return($ret_val);
 	}
 	
 	public function requestRdfDump($filename, $format)
@@ -509,6 +515,7 @@ class HedgehogDataset
 				}
 				// Now use the same method to get the name of the parser used.
 				$m = array();
+				$ntriples_file_format = "";
 				if(preg_match("/parser name \'([a-zA-Z0-9]+)\'/", $ret_val['stderr'], $m) > 0)
 				{
 					$ntriples_file_format = strtolower($m[1]);
@@ -518,6 +525,13 @@ class HedgehogDataset
 			}
 		}
 		$this->import_file_format = $ntriples_file_format;
+
+		if($triples_count == 0)
+		{
+			$this->status = -1;
+			$this->errors = "No triples to import\n";
+			return -1;
+		}
 
 		// We have everything we need to import, so we can go about preparing the raw data files for publishing
 		// Start by deleting anthing with .private as an extension.
@@ -570,6 +584,7 @@ class HedgehogDataset
 		// Copy the hopper to the dumps file
 		dupdir($hopper_dir, $dumps_dir);
 		
+		return 0;
 	}
 	
 	private function getProvenanceTriples()
@@ -1184,15 +1199,26 @@ foreach($datasets as $dataset)
 	$ds = new HedgehogDataset($dataset, $switches['quiet'], $switches['force_import']);
 	if($ds->status == 0)
 	{
-		$ds->prepare();
+		$ret_val = $ds->prepare();
 		
-		if($ds->changedFiles() | $ds->force) // Only continue if files unchanged, or publish explicitly forced
+		if(($ret_val == 0) & ($ds->changedFiles() | $ds->force)) // Only continue if files unchanged, or publish explicitly forced (and there's no error, obviously)
 		{
 			// Publish the dataset
 		
 			$ds->requestRdfDump($ds->name() . ".rdf", "rdfxml");
 			$ds->requestRdfDump($ds->name() . ".ttl", "turtle");
-			$ds->publish();
+			$ret_val = $ds->publish();
+
+			if($ret_val != 0)
+			{
+				if(!$switches['quiet'])
+				{
+					print("     FAILED " . $ds->name . "... prepare failed.\n");
+					print($ds->errors);
+					
+				}
+				exit();
+			}
 
 			// Import to the triplestore
 			$import_url = $ds->setting("import_url");
@@ -1212,6 +1238,13 @@ foreach($datasets as $dataset)
 			}
 
 			
+		}
+		else
+		{
+			if(!$switches['quiet'])
+			{
+				print("     NOT publishing " . $ds->name . "... prepare failed.\n");
+			}
 		}
 	}
 	else
