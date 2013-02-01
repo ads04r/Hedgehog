@@ -1213,7 +1213,7 @@ foreach($datasets as $dataset)
 			{
 				if(!$switches['quiet'])
 				{
-					print("     FAILED " . $ds->name . "... prepare failed.\n");
+					print("     FAILED " . $ds->name() . "... prepare failed.\n");
 					print($ds->errors);
 					
 				}
@@ -1243,7 +1243,7 @@ foreach($datasets as $dataset)
 		{
 			if(!$switches['quiet'])
 			{
-				print("     NOT publishing " . $ds->name . "... prepare failed.\n");
+				print("     NOT publishing " . $ds->name() . "... prepare failed.\n");
 			}
 		}
 	}
