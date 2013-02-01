@@ -228,27 +228,6 @@ class HedgehogDataset
 		$dataset_cfg = $source_dir . "/publish.json";
 		$ntriples_file = $this->triples_file;
 		
-		// Ensure dump directory exists (if specified)
-		$dumps_dir = "";
-		@$dumps_dir = $this->global_settings['dumps_dir'];
-		$datestring = date("Y-m-d");
-		if(is_dir($dumps_dir))
-		{
-			$dumps_dir = $dumps_dir . "/" . $dataset;
-			if(!(is_dir($dumps_dir)))
-			{
-				mkdir($dumps_dir);
-			}
-			$dumps_dir = $dumps_dir . "/" . $datestring;
-			if(is_dir($dumps_dir))
-			{
-				deltree($dumps_dir);
-			}
-			mkdir($dumps_dir, 0755, true);
-			$this->dumps_path = $dumps_dir;
-		}
-		$this->remote_path = $this->global_settings['target_base_url'] . "/" . $dataset . "/" . $datestring;
-
 		// Read the configuration file
 		$cfg_obj = json_decode(implode("", file($dataset_cfg)), true);
 		$cfg_properties = $cfg_obj['properties'];
@@ -558,6 +537,31 @@ class HedgehogDataset
 		$fp = fopen($ntriples_file, "a");
 		fwrite($fp, implode("\n", $triples) . "\n");
 		fclose($fp);
+
+		// Ensure dump directory exists (if specified)
+		$dumps_dir = "";
+		@$dumps_dir = $this->global_settings['dumps_dir'];
+		$datestring = date("Y-m-d");
+		if(is_dir($dumps_dir))
+		{
+
+			$dumps_dir = $dumps_dir . "/" . $dataset;
+			if(!(is_dir($dumps_dir)))
+			{
+				mkdir($dumps_dir);
+			}
+			$dumps_dir = $dumps_dir . "/" . $datestring;
+			if(is_dir($dumps_dir))
+			{
+				deltree($dumps_dir);
+			}
+			mkdir($dumps_dir, 0755, true);
+
+			$this->dumps_path = $dumps_dir;
+		}
+		$this->remote_path = $this->global_settings['target_base_url'] . "/" . $dataset . "/" . $datestring;
+
+
 		
 		// Produce dumps
 		if(file_exists($rapper_path))
