@@ -460,8 +460,9 @@ class Quill
 		{
 			$localfile = $dumpfile['filename'];
 			$format = $dumpfile['format'];
+			$triples_filename = preg_replace("|^(.*)/([^/]+)$|", "$2", $this->triples_file);
 			$rdffile = $this->hopper_path . "/" . $localfile;
-			$cmd_line = $rapper . " -i ntriples -o " . $format . " " . $this->triples_file . " | sed s#\\<file\\:[^\\>]*" . $this->triples_file . "\\>#\\<\\># > " . $rdffile;
+			$cmd_line = $rapper . " -i ntriples -o " . $format . " " . $this->triples_file . " | sed s#\\<file\\:[^\\>]*" . $triples_filename . "\\>#\\<\\># > " . $rdffile;
 			$ret_val = $this->externalScript($cmd_line);
 			if(!(file_exists($rdffile)))
 			{
