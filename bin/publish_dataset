@@ -1,6 +1,62 @@
 #!/usr/bin/php -q
 <?php
 
+/* Class: 'Quill'
+-----------------
+The Quill class is effectively a dataset generation package. It handles the
+publishing and, in many cases, the creation of a dataset. On creation it
+requires the passing of a 'publish.json' file (although it doesn't require
+this particular filename, just in case we decide to change it in future
+versions.) Optionally, it can be passed the name of a directory for storing
+temporary files, if this is omitted it defaults to '/tmp'.
+
+The class's workflow is as follows:
+
+1. Creation
+2. Prepare
+3. Request outputs / misc
+4. Publish
+5. Destruction
+
+Once the class is created, there is not much that can be done with it, other
+than reading configuration files, checking entries are valid, etc. In order
+to actually do anything useful, the 'prepare' method must be called. This
+method actually goes through the process of downloading any necessary files,
+creating temporary directories and doing everything necessary to produce
+triples, without actually creating any.
+
+Quill takes two arguments, 'quiet' and 'tools_path'. Both have defaults; quiet
+defaults to 'false' and 'tools_path' defaults to '/usr/bin'. If 'quiet' is
+set to true, the class will not display any output to STDOUT. 'tools_path'
+is where the class will look for things like Rapper and Grinder, although
+it's smart enough to check the PATH system variable if it can't find them
+there. Of course, if the dataset doesn't require any tools, this is all
+irelevant. The 'prepare' method returns an integer relating to the number of
+problems it encountered during its tasks. More details can be accessed from
+the public property 'errors'. Publishing should cease if any errors are present.
+
+After 'prepare' has been called, additional publish actions that might affect
+the resulting data should be called. The only one at present is
+'requestRdfDump', which instructs the class to create a dump in a particular
+format on publish. Three formats are supported; rdfxml, turtle and ntriples.
+The 'filename' argument is required, this is the file to which the dump will
+be written.
+
+TODO: Other formats, eg RSS and KML
+
+Once all this has been done, the 'publish' method should be called. This
+basically does all the triple generation, dump file generation and the pushing
+to a directory. It takes two arguments ('dumppath' and 'remotepath') and one
+optional argument ('quiet', for supressing STDOUT). 'dumppath' is the
+directory on the local drive to copy all the files (generally should be
+within a world-readable 'htdocs' directory) and 'remotepath' is how the
+directory is to be called by web users (should begin with http://).
+
+Additionally, once a publish has taken place, the 'triples' property is
+available. This returns all the triples generated as part of the dataset,
+as an array of strings. Each string is a valid one-line ntriples document.
+This may be imported into a triplestore using the 'FourStore' object. */
+
 class Quill
 {
 	const HEDGEHOG_VERSION = "1.0";
@@ -507,7 +563,7 @@ class Quill
 		return(0);
 	}
 
-	public function dumpFileMetadata($uri)
+	private function dumpFileMetadata($uri)
 	{
 		$cfg_properties = $this->config['properties'];
 		$ttl = array();
