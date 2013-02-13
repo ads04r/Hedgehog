@@ -588,7 +588,7 @@ class Quill
 
 	public function triples()
 	{
-		if(strlen($this->triples_file))
+		if(strlen($this->triples_file) == 0)
 		{
 			return array();
 		}
@@ -880,6 +880,7 @@ class FourStore
 		{
 			$chunk = array_slice($triples, $i, $this->max_triples);
 			$r[] = $this->append_chunk($graph, $chunk);
+			$i = $i + $this->max_triples;
 		}
 		return($r);
 	}
@@ -970,8 +971,8 @@ class Hedgehog
 		@$triplestore_url = $this->config->import_url;
 		if(strlen($triplestore_url) > 0)
 		{
-			$fs = new FourStore($triplestore_url);
-			$fs->replace($graph, $quill->triples());
+			$fs = new FourStore($triplestore_url, 100);
+			$err = $fs->replace($graph, $quill->triples());
 		}
 		if(!($this->quiet))
 		{
