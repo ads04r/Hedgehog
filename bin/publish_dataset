@@ -274,7 +274,9 @@ class Quill
 				$errors = count($this->errors);
 				return($errors);
 			}
+			$file_perms = fileperms($toolpath);
 			copy($toolpath, $this->hopper_path . "/" . $tool);
+			chmod($this->hopper_path . "/" . $tool, $file_perms);
 			if(!(file_exists($this->hopper_path . "/" . $tool)))
 			{
 				$this->errors[] = "Could not copy tool " . $tool;
@@ -964,8 +966,13 @@ class Hedgehog
 		{
 			print("  Importing into triplestore: " . $graph . "\n");
 		}
-		$fs = FourStore($this->config->import_url);
-		$fs->replace($graph, $quill->triples());
+		$triplestore_url = "";
+		@$triplestore_url = $this->config->import_url;
+		if(strlen($triplestore_url) > 0)
+		{
+			$fs = new FourStore($triplestore_url);
+			$fs->replace($graph, $quill->triples());
+		}
 		if(!($this->quiet))
 		{
 			print("  Publish successful\n");
