@@ -324,7 +324,7 @@ class Quill
 		return($errors);
 	}
 	
-	public function publish($dumppath, $quiet = false)
+	public function publish($dumppath, $remotepath, $quiet = false)
 	{
 		// Set up some variables to start.
 		if(array_key_exists("min_triples", $this->config['properties']))
@@ -437,7 +437,22 @@ class Quill
 			}
 		}
 		
-		// Add provenance/metadata
+		// Add metadata
+		foreach($this->dumpfiles as $dumpfile)
+		{
+			$uri = $dumpfile['uri'];
+			if(strlen($uri) == 0)
+			{
+				continue;
+			}
+			$ttl = $this->dumpFileMetadata($uri);
+			$fp = fopen($this->triples_file, "a");
+			foreach($ttl as $triple)
+			{
+				fwrite($fp, $triple . "\n");
+			}
+			fclose($fp);
+		}
 		
 		// Perform dumps
 
@@ -446,13 +461,13 @@ class Quill
 			$localfile = $dumpfile['filename'];
 			$format = $dumpfile['format'];
 			$rdffile = $this->hopper_path . "/" . $localfile;
-			$cmd_line = $rapper . " -i ntriples -o " . $format . " " . $this->triples_file . " > " . $rdffile;
+			$cmd_line = $rapper . " -i ntriples -o " . $format . " " . $this->triples_file . " | sed s#\\<file\\:[^\\>]*" . $this->triples_file . "\\>#\\<\\># > " . $rdffile;
 			$ret_val = $this->externalScript($cmd_line);
 			if(!(file_exists($rdffile)))
 			{
 				$this->errors[] = "Error creating dump file " . $rdffile;
 				$errors = count($this->errors);
-				return($errors);				
+				return($errors);
 			}
 		}
 		
@@ -491,10 +506,83 @@ class Quill
 		return(0);
 	}
 
-	public function requestRdfDump($filename, $format)
+	public function dumpFileMetadata($uri)
+	{
+		$cfg_properties = $this->config['properties'];
+		$ttl = array();
+		if(array_key_exists('title', $cfg_properties))
+		{
+			$ttl[] = "<" . $uri . "> <http://purl.org/dc/terms/title> \"" . str_replace("\"", "\\\"", $cfg_properties['title']) . "\" .";
+		}
+		if(array_key_exists('description', $cfg_properties))
+		{
+			$ttl[] = "<" . $uri . "> <http://purl.org/dc/terms/description> \"" . str_replace("\"", "\\\"", $cfg_properties['description']) . "\" .";
+		}
+		if(array_key_exists('stars', $cfg_properties))
+		{
+			$ttl[] = "<" . $uri . "> <http://purl.org/dc/terms/conformsTo> <http://purl.org/openorg/opendata-" . $cfg_properties['stars'] . "-star> .";
+		}
+		if(array_key_exists('license', $cfg_properties))
+		{
+			$licenses = $cfg_properties['license'];
+			if(is_array($licenses))
+			{
+				foreach($licenses as $license)
+				{
+					$ttl[] = "<" . $uri . "> <http://purl.org/dc/terms/license> <" . $license . "> .";
+				}
+			}
+		}
+		if(array_key_exists('publisheruri', $cfg_properties))
+		{
+			$ttl[] = "<" . $uri . "> <http://purl.org/dc/terms/publisher> <" . $cfg_properties['publisheruri'] . "> .";
+			if(array_key_exists('publishername', $cfg_properties))
+			{
+				$ttl[] = "<" . $cfg_properties['publisheruri'] . "> <http://www.w3.org/2000/01/rdf-schema#label> \"" . str_replace("\"", "\\\"", $cfg_properties['publishername']) . "\" .";
+			}
+
+		}
+		if(array_key_exists('corrections', $cfg_properties))
+		{
+			if(preg_match("/.*@.*/", $cfg_properties['corrections']) > 0)
+			{
+				$ttl[] = "<" . $uri . "> <http://purl.org/openorg/corrections> <mailto:" . $cfg_properties['corrections'] . "> .";
+			}
+			else
+			{
+				$ttl[] = "<" . $uri . "> <http://purl.org/openorg/corrections> <" . $cfg_properties['corrections'] . "> .";
+			}
+		}
+		if(array_key_exists('endpoint', $cfg_properties))
+		{
+			$endpoints = $cfg_properties['endpoint'];
+			if(is_array($endpoints))
+			{
+				foreach($endpoints as $endpoint)
+				{
+					$ttl[] = "<" . $uri . "> <http://rdfs.org/ns/void#sparqlEndpoint> <" . $endpoint . "> .";
+				}
+			}
+		}
+		if(array_key_exists('authority', $cfg_properties))
+		{
+			if($cfg_properties['authority'])
+			{
+				$ttl[] = "<" . $uri . "> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/openorg/AuthoritativeDataset> .";
+			}
+			else
+			{
+				$ttl[] = "<" . $uri . "> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/openorg/NonAuthoritativeDataset> .";
+			}
+		}
+		return($ttl);
+	}
+
+	public function requestRdfDump($filename, $uri="", $format="turtle")
 	{
 		$item = array();
 		$item['filename'] = $filename;
+		$item['uri'] = $uri;
 		$item['format'] = $format;
 		$this->dumpfiles[] = $item;
 	}
@@ -902,6 +990,7 @@ class Hedgehog
 	{
 		$quills = $this->config->quills_dir;
 		$tmp = $this->config->tmp_dir;
+		$dumpdate = date("Y-m-d");
 
 		$cfg = rtrim($quills, "/") . "/" . $dataset . "/publish.json";
 		if(!(file_exists($cfg)))
@@ -923,7 +1012,7 @@ class Hedgehog
 		{
 			return("Cannot open quill '" . $dataset . "': " . $e->getMessage());
 		}
-		$dump = rtrim($this->config->dumps_dir, "/") . "/" . $dataset . "/" . date("Y-m-d");
+		$dump = rtrim($this->config->dumps_dir, "/") . "/" . $dataset . "/" . $dumpdate;
 		if(!($this->quiet))
 		{
 			print("Processing quill '" . $dataset . "'\n");
@@ -950,8 +1039,20 @@ class Hedgehog
 		}
 		
 		// Dump files
-		$quill->requestRdfDump($dataset . ".rdf", "rdfxml");
-		$quill->requestRdfDump($dataset . ".ttl", "turtle");
+		$dump_base = $this->config->target_base_url;
+		if(strlen($dump_base) > 0)
+		{
+			$xmluri = $dump_base . "/" . $dataset . "/" . $dumpdate . "/" . $dataset . ".rdf";
+			//$xmluri = "";
+			$ttluri = $dump_base . "/" . $dataset . "/" . $dumpdate . "/" . $dataset . ".ttl";
+		}
+		else
+		{
+			$xmluri = "";
+			$ttluri = "";
+		}
+		$quill->requestRdfDump($dataset . ".rdf", $xmluri, "rdfxml");
+		$quill->requestRdfDump($dataset . ".ttl", $ttluri, "turtle");
 		
 		if(!($this->quiet))
 		{
