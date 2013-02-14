@@ -62,7 +62,6 @@ class Quill
 	const HEDGEHOG_VERSION = "1.0";
 	const HEDGEHOG_URL = "http://data.southampton.ac.uk/";
 
-	private $creation_time;
 	private $hopper_path;
 	private $triples_file;
 	private $quill_path;
@@ -74,6 +73,7 @@ class Quill
 	
 	public $hash_check_result;
 	public $hash_checked;
+	public $provenance;
 
 	// Define a few file-related functions so we don't have to keep calling the shell.
 
@@ -540,6 +540,13 @@ class Quill
 		$this->dupdir($this->hopper_path, $dumppath);
 		
 		// Perform completion scripts, if requested.
+		$this->runCompletedScripts();
+		
+		return(count($this->errors));
+	}
+
+	public function runCompletedScripts()
+	{
 		chdir($this->hopper_path);
 		$commands = $this->config['commands'];
 		if(array_key_exists("completed", $commands))
@@ -553,16 +560,11 @@ class Quill
 					$errors = count($this->errors);
 					return($errors);
 				}
-				if((!($quiet)) & (strlen($file_output['stdout']) > 0))
-				{
-					print("    " . str_replace("\n", "\n    ", $file_output['stdout']) . "\n");
-				}
 			}
 		}
-		
-		return(0);
+		return count($this->errors);
 	}
-
+	
 	private function dumpFileMetadata($uri)
 	{
 		$cfg_properties = $this->config['properties'];
@@ -746,7 +748,6 @@ class Quill
 
 	function __construct($cfg_file, $tmp_dir="/tmp")
 	{
-		$this->creation_time = time();
 		$this->extra_triples = array();
 		$this->dumpfiles = array();
 		$this->quill_path = preg_replace("|/[^/]*$|", "", $cfg_file);
@@ -781,6 +782,46 @@ class Quill
 		{
 			unlink($this->triples_file);
 		}
+	}
+}
+
+class Provenance
+{
+	private $log;
+	private $creation_time;
+	
+	function logDownloadStart($url)
+	{
+		$item = array();
+		$item['type'] = 'downloadstart';
+		$item['url'] = $url;
+		$item['time'] = time();
+		$log[] = $item;
+	}
+
+	function logDownloadEnd($url)
+	{
+		$item = array();
+		$item['type'] = 'downloadend';
+		$item['url'] = $url;
+		$item['time'] = time();
+		$log[] = $item;
+	}
+	
+	function logConvert($fromuri, $touri, $additionaluris)
+	{
+		$item = array();
+		$item['type'] = 'convert';
+		$item['from'] = $fromuri;
+		$item['to'] = $touri;
+		$item['additional'] = $additionaluris;
+		$item['time'] = time();
+		$log[] = $item;		
+	}
+
+	function __construct()
+	{
+		$this->creation_time = time();
 	}
 }
 
@@ -947,7 +988,7 @@ function display_help($extended=false)
 	print("publish_dataset\n");
 	print("---------------\n");
 	print("A tool for publishing datasets within the Hedgehog system.\n\n");
-	print("Usage: publish_dataset (options) dataset [dataset [dataset [...]]]\n\n");
+	print("Usage: publish_dataset [options] dataset [dataset [dataset [...]]]\n\n");
 	if($extended)
 	{
 		// Show extended help
@@ -1088,6 +1129,11 @@ class Hedgehog
 		$changed = $quill->changedFiles($hash_file);
 		if((!($changed)) & (!($this->force)))
 		{
+			$errors = $quill->runCompletedScripts();
+			if($errors > 0)
+			{
+				return(implode("\n", $quill->errors));
+			}
 			if(!($this->quiet))
 			{
 				print("  No modifications, publish aborted\n");
