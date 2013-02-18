@@ -293,11 +293,13 @@ class Quill
 		{
 			if((array_key_exists("localfile", $download)) & (array_key_exists("download", $download)))
 			{
+				$this->provenance->logDownloadStart($download['download'], $download['localfile']);
 				$this->wget($download['download'], $download['localfile']);
 				if(!(file_exists($download['localfile'])))
 				{
 					$this->errors[] = "Could not download " . $download['download'];
 				}
+				$this->provenance->logDownloadEnd($download['download'], $download['localfile']);
 			}
 		}
 		$errors = count($this->errors);
@@ -399,7 +401,21 @@ class Quill
 		{
 			$warn_triples = 0;
 		}
-	
+
+		// Check the current contents of the hopper so we can tell which command did what
+		$current_hopper = array();
+		if ($fh = opendir($this->hopper_path))
+		{
+			while (false !== ($entry = readdir($fh)))
+			{
+				if(!(is_dir($this->hopper_path . "/" . $entry)))
+				{
+					$current_hopper[] = $entry;
+				}
+			}
+			closedir($fh);
+		}
+		
 		// First run the 'publish' scripts, if any.
 		chdir($this->hopper_path);
 		$commands = $this->config['commands'];
@@ -418,6 +434,24 @@ class Quill
 				{
 					print("    " . str_replace("\n", "\n    ", $file_output['stdout']) . "\n");
 				}
+
+				if ($fh = opendir($this->hopper_path))
+				{
+					while (false !== ($entry = readdir($fh)))
+					{
+						if(!(is_dir($this->hopper_path . "/" . $entry)))
+						{
+							if(!(in_array($entry, $current_hopper)))
+							{
+								$this->provenance->logConvert("", $entry, $current_hopper);
+								$current_hopper[] = $entry;
+							}
+						}
+					}
+					closedir($fh);
+				}
+
+				
 			}
 		}
 		
@@ -456,6 +490,7 @@ class Quill
 		$cmd_line = $rapper . " -g -o ntriples " . $import_file . " > " . $this->triples_file;
 		$triplecount = 0;
 		$ret_val = $this->externalScript($cmd_line);
+		$this->provenance->logConvert($import_file, $this->triples_file, array());
 		// Get the number of triples - bit hacky but does the job until I can think of something better.
 		// We could count the lines in the ntriples file, but that would take far too much time with massive datasets.
 		$m = array();
@@ -509,6 +544,16 @@ class Quill
 			}
 			fclose($fp);
 		}
+		
+		// Add provenance
+		$ttl = $this->provenance->generateProvenance($dumppath, $remotepath);
+		//print(implode("\n", $ttl) . "\n");
+		$fp = fopen($this->triples_file, "a");
+		foreach($ttl as $triple)
+		{
+			fwrite($fp, $triple . "\n");
+		}
+		fclose($fp);
 		
 		// Perform dumps
 
@@ -644,6 +689,13 @@ class Quill
 		$item['uri'] = $uri;
 		$item['format'] = $format;
 		$this->dumpfiles[] = $item;
+
+		$rdffile = $this->hopper_path . "/" . $filename;
+		$import_file = $this->config['properties']['import_file'];
+		if(!(file_exists($rdffile)))
+		{
+			$this->provenance->logConvert($import_file, $filename, array());
+		}
 	}
 
 	// The following three functions handle hash checks. The hashCheck function isn't
@@ -748,6 +800,7 @@ class Quill
 
 	function __construct($cfg_file, $tmp_dir="/tmp")
 	{
+		$this->provenance = new Provenance();
 		$this->extra_triples = array();
 		$this->dumpfiles = array();
 		$this->quill_path = preg_replace("|/[^/]*$|", "", $cfg_file);
@@ -769,6 +822,7 @@ class Quill
 		}
 		$this->hopper_path = rtrim($tmp_dir, "/") . "/" . $dataset . ".new." . $uid;
 		$this->triples_file = rtrim($tmp_dir, "/") . "/" . $dataset . "-full.nt." . $uid;
+		//$this->triples_file = $this->hopper_path . "/" . $dataset . ".nt";
 		if(!($this->ensureDirExists($this->hopper_path))) {
 			throw new Exception("Cannot create temporary directory for processing");
 		}
@@ -788,40 +842,123 @@ class Quill
 class Provenance
 {
 	private $log;
+	private $downloads;
 	private $creation_time;
 	
-	function logDownloadStart($url)
+	private function snipHead($path)
 	{
-		$item = array();
-		$item['type'] = 'downloadstart';
-		$item['url'] = $url;
-		$item['time'] = time();
-		$log[] = $item;
-	}
-
-	function logDownloadEnd($url)
-	{
-		$item = array();
-		$item['type'] = 'downloadend';
-		$item['url'] = $url;
-		$item['time'] = time();
-		$log[] = $item;
+		$parse = explode("/", rtrim($path, "/"));
+		$c = count($parse);
+		
+		return($parse[($c - 1)]);
 	}
 	
-	function logConvert($fromuri, $touri, $additionaluris)
+	public function logDownloadStart($url, $localfile="")
 	{
+		$download_file = $this->snipHead($localfile);
+	
 		$item = array();
-		$item['type'] = 'convert';
-		$item['from'] = $fromuri;
-		$item['to'] = $touri;
-		$item['additional'] = $additionaluris;
+		$item['type'] = 'downloadstart';
+		$item['from'] = $url;
+		$item['to'] = $download_file;
 		$item['time'] = time();
-		$log[] = $item;		
+		$this->log[] = $item;
 	}
 
+	public function logDownloadEnd($url, $localfile="")
+	{
+		$download_file = $this->snipHead($localfile);
+		
+		$item = array();
+		$item['type'] = 'downloadend';
+		$item['from'] = $url;
+		$item['to'] = $download_file;
+		$item['time'] = time();
+		$this->log[] = $item;
+	}
+	
+	public function logConvert($fromuri, $touri, $additionaluris)
+	{
+		$fromfile = $this->snipHead($fromuri);
+		
+		$item = array();
+		$item['type'] = 'convert';
+		$item['from'] = $fromfile;
+		$item['to'] = $this->snipHead($touri);
+		$item['additional'] = $additionaluris;
+		$item['time'] = time();
+		$this->log[] = $item;		
+	}
+
+	function generateProvenance($path, $base_url)
+	{
+		$triples = array();
+		$checkpath = rtrim($path, "/");
+		foreach($this->log as $event)
+		{
+			$type = $event['type'];
+			$uri = rtrim($base_url, "/") . "/" . $event['to'];
+			$localfile = rtrim($path, "/") . "/" . $event['to'];
+			$fromuri = "";
+			if(strlen($event['from']) > 0)
+			{
+				if(strlen(stristr($event['from'], "://")) > 0)
+				{
+					$fromuri = $event['from'];
+				}
+				else
+				{
+					$parse = explode("/", rtrim($event['from'], "/"));
+					$fromuri = rtrim($base_url, "/") . "/" . $parse[(count($parse) - 1)];
+				}
+			}
+			if(!(file_exists($localfile)))
+			{
+				continue;
+			}
+			switch ($type)
+			{
+				case "downloadstart":
+					$triples[] = "<" . $uri . "#provenance> <http://purl.org/void/provenance/ns/processType> <http://id.southampton.ac.uk/ns/DownloadViaHTTP> .";
+					$triples[] = "<" . $uri . "#provenance> <http://www.w3.org/2006/time#hasBeginning> \"" . date("c", $event['time']) . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> .";
+					break;
+				case "downloadend":
+					$triples[] = "<" . $uri . "#provenance> <http://purl.org/void/provenance/ns/processType> <http://id.southampton.ac.uk/ns/DownloadViaHTTP> .";
+					$triples[] = "<" . $uri . "#provenance> <http://www.w3.org/2006/time#hasEnd> \"" . date("c", $event['time']) . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> .";
+					break;
+				case "convert":
+					if(count($event['additional']) > 0)
+					{
+						$triples[] = "<" . $uri . "#provenance> <http://purl.org/void/provenance/ns/processType> <http://id.southampton.ac.uk/ns/ConvertAndPublishDataset> .";
+						foreach($event['additional'] as $filename)
+						{
+							$fileuri = rtrim($base_url, "/") . "/" . $filename;
+							$triples[] = "<" . $uri . "#provenance> <http://purl.org/void/provenance/ns/processIncludedFile> <" . $fileuri . "> .";
+						}
+						$triples[] = "<" . $uri . "#provenance> <http://www.w3.org/2006/time#hasBeginning> \"" . date("c", $this->creation_time) . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> .";
+					}
+					else
+					{
+						$triples[] = "<" . $uri . "#provenance> <http://purl.org/void/provenance/ns/processType> <http://id.southampton.ac.uk/ns/ConvertFormat> .";
+						$triples[] = "<" . $uri . "#provenance> <http://www.w3.org/2006/time#hasBeginning> \"" . date("c", $event['time']) . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> .";
+					}
+					$triples[] = "<" . $uri . "#provenance> <http://www.w3.org/2006/time#hasEnd> \"" . date("c", $event['time']) . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> .";
+					break;
+			}
+			$triples[] = "<" . $uri . "#provenance> <http://purl.org/void/provenance/ns/resultingDataset> <" . $uri . "> .";
+			if(strlen($fromuri) > 0)
+			{
+				$triples[] = "<" . $uri . "#provenance> <http://purl.org/void/provenance/ns/sourceDataset> <" . $fromuri . "> .";
+			}
+			$triples[] = "<" . $uri . "#provenance> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/void/provenance/ns/ProvenanceEvent> .";
+		}
+		return(array_unique($triples));
+	}
+	
 	function __construct()
 	{
 		$this->creation_time = time();
+		$this->downloads = array();
 	}
 }
 
@@ -1161,7 +1298,7 @@ class Hedgehog
 		{
 			print("  Publishing data to " . $dump . "\n");
 		}
-		$errors = $quill->publish($dump, $this->quiet);
+		$errors = $quill->publish($dump, $dump_base . "/" . $dataset . "/" . $dumpdate, $this->quiet);
 		if($errors > 0)
 		{
 			return(implode("\n", $quill->errors));
