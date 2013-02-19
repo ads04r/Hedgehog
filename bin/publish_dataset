@@ -382,7 +382,7 @@ class Quill
 		return($errors);
 	}
 	
-	public function publish($dumppath, $remotepath, $quiet = false)
+	public function publish($dumppath, $remotepath, $dataset_uri, $quiet = false)
 	{
 		// Set up some variables to start.
 		if(array_key_exists("min_triples", $this->config['properties']))
@@ -504,6 +504,7 @@ class Quill
 		if(preg_match("/parser name \'([a-zA-Z0-9]+)\'/", $ret_val['stderr'], $m) > 0)
 		{
 			$ntriples_file_format = strtolower($m[1]);
+			$this->provenance->fileType($import_file, $ntriples_file_format);
 		}
 		
 		// If not enough triples were generated, something is wrong and we need to stop here.
@@ -537,6 +538,7 @@ class Quill
 				continue;
 			}
 			$ttl = $this->dumpFileMetadata($uri);
+			$ttl[] = "<" . $uri . "> <http://purl.org/dc/terms/isPartOf> <" . $dataset_uri . "> .";
 			$fp = fopen($this->triples_file, "a");
 			foreach($ttl as $triple)
 			{
@@ -546,7 +548,7 @@ class Quill
 		}
 		
 		// Add provenance
-		$ttl = $this->provenance->generateProvenance($dumppath, $remotepath);
+		$ttl = $this->provenance->generateProvenance($this->hopper_path, $remotepath);
 		//print(implode("\n", $ttl) . "\n");
 		$fp = fopen($this->triples_file, "a");
 		foreach($ttl as $triple)
@@ -685,16 +687,16 @@ class Quill
 	public function requestRdfDump($filename, $uri="", $format="turtle")
 	{
 		$item = array();
-		$item['filename'] = $filename;
+		$item['filename'] = preg_replace("|^(.*)/([^/]+)$|", "$2", $filename);
 		$item['uri'] = $uri;
 		$item['format'] = $format;
 		$this->dumpfiles[] = $item;
 
 		$rdffile = $this->hopper_path . "/" . $filename;
-		$import_file = $this->config['properties']['import_file'];
+		$import_file = preg_replace("|^(.*)/([^/]+)$|", "$2", $this->config['properties']['import_file']);
 		if(!(file_exists($rdffile)))
 		{
-			$this->provenance->logConvert($import_file, $filename, array());
+			$this->provenance->logConvert($import_file, $filename, array(), $format);
 		}
 	}
 
@@ -843,6 +845,7 @@ class Provenance
 {
 	private $log;
 	private $downloads;
+	private $filetypes;
 	private $creation_time;
 	
 	private function snipHead($path)
@@ -876,8 +879,14 @@ class Provenance
 		$item['time'] = time();
 		$this->log[] = $item;
 	}
+
+	public function fileType($filename, $format)
+	{
+		$fn = preg_replace("|^(.*)/([^/]+)$|", "$2", $filename);
+		$this->filetypes[$fn] = $format;
+	}
 	
-	public function logConvert($fromuri, $touri, $additionaluris)
+	public function logConvert($fromuri, $touri, $additionaluris, $targetformat="")
 	{
 		$fromfile = $this->snipHead($fromuri);
 		
@@ -887,9 +896,57 @@ class Provenance
 		$item['to'] = $this->snipHead($touri);
 		$item['additional'] = $additionaluris;
 		$item['time'] = time();
-		$this->log[] = $item;		
+		$this->log[] = $item;
+		
+		if(strlen($targetformat) > 0)
+		{
+			$fn = preg_replace("|^(.*)/([^/]+)$|", "$2", $touri);
+			$this->filetypes[$fn] = $targetformat;
+		}
 	}
 
+	private function getConvertType($fromuri, $touri)
+	{
+			$fromfile = trim(preg_replace("|^(.*)/([^/]+)$|", "$2", $fromuri));
+			$tofile = trim(preg_replace("|^(.*)/([^/]+)$|", "$2", $touri));
+			$fromtype = "";
+			$totype = "";
+			@$fromtype = $this->filetypes[$fromfile];
+			@$totype = $this->filetypes[$tofile];
+			
+			if((strcmp($fromtype, "ntriples") == 0) & (strcmp($totype, "rdfxml") == 0))
+			{
+				return("http://id.southampton.ac.uk/ns/ConvertNTriplesToRDFXML");
+			}
+			
+			if((strcmp($fromtype, "ntriples") == 0) & (strcmp($totype, "turtle") == 0))
+			{
+				return("http://id.southampton.ac.uk/ns/ConvertNTriplesToTurtle");
+			}
+			
+			if((strcmp($fromtype, "turtle") == 0) & (strcmp($totype, "ntriples") == 0))
+			{
+				return("http://id.southampton.ac.uk/ns/ConvertTurtleToNTriples");
+			}
+			
+			if((strcmp($fromtype, "turtle") == 0) & (strcmp($totype, "rdfxml") == 0))
+			{
+				return("http://id.southampton.ac.uk/ns/ConvertTurtleToRDFXML");
+			}
+			
+			if((strcmp($fromtype, "rdfxml") == 0) & (strcmp($totype, "turtle") == 0))
+			{
+				return("http://id.southampton.ac.uk/ns/ConvertRDFXMLToTurtle");
+			}
+			
+			if((strcmp($fromtype, "rdfxml") == 0) & (strcmp($totype, "ntriples") == 0))
+			{
+				return("http://id.southampton.ac.uk/ns/ConvertRDFXMLToNTriples");
+			}
+			
+			return "";
+	}
+	
 	function generateProvenance($path, $base_url)
 	{
 		$triples = array();
@@ -912,10 +969,11 @@ class Provenance
 					$fromuri = rtrim($base_url, "/") . "/" . $parse[(count($parse) - 1)];
 				}
 			}
-			if(!(file_exists($localfile)))
+			if((!(file_exists($localfile))) & (!(array_key_exists($event['to'], $this->filetypes))))
 			{
 				continue;
 			}
+			$converttype = $this->getConvertType($fromuri, $uri);
 			switch ($type)
 			{
 				case "downloadstart":
@@ -939,7 +997,10 @@ class Provenance
 					}
 					else
 					{
-						$triples[] = "<" . $uri . "#provenance> <http://purl.org/void/provenance/ns/processType> <http://id.southampton.ac.uk/ns/ConvertFormat> .";
+						if(strlen($converttype) > -1)
+						{
+							$triples[] = "<" . $uri . "#provenance> <http://purl.org/void/provenance/ns/processType> <" . $converttype . "> .";
+						}
 						$triples[] = "<" . $uri . "#provenance> <http://www.w3.org/2006/time#hasBeginning> \"" . date("c", $event['time']) . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> .";
 					}
 					$triples[] = "<" . $uri . "#provenance> <http://www.w3.org/2006/time#hasEnd> \"" . date("c", $event['time']) . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> .";
@@ -959,6 +1020,7 @@ class Provenance
 	{
 		$this->creation_time = time();
 		$this->downloads = array();
+		$this->filetypes = array();
 	}
 }
 
@@ -1298,7 +1360,8 @@ class Hedgehog
 		{
 			print("  Publishing data to " . $dump . "\n");
 		}
-		$errors = $quill->publish($dump, $dump_base . "/" . $dataset . "/" . $dumpdate, $this->quiet);
+		$dataset_uri = $this->config->xml_base . "/dataset/" . $dataset;
+		$errors = $quill->publish($dump, $dump_base . "/" . $dataset . "/" . $dumpdate, $dataset_uri, $this->quiet);
 		if($errors > 0)
 		{
 			return(implode("\n", $quill->errors));
