@@ -977,21 +977,21 @@ class Provenance
 			switch ($type)
 			{
 				case "downloadstart":
-					$triples[] = "<" . $uri . "#provenance> <http://purl.org/void/provenance/ns/processType> <http://id.southampton.ac.uk/ns/DownloadViaHTTP> .";
+					$triples[] = "<" . $uri . "#provenance> <http://id.southampton.ac.uk/ns/processType> <http://id.southampton.ac.uk/ns/DownloadViaHTTP> .";
 					$triples[] = "<" . $uri . "#provenance> <http://www.w3.org/2006/time#hasBeginning> \"" . date("c", $event['time']) . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> .";
 					break;
 				case "downloadend":
-					$triples[] = "<" . $uri . "#provenance> <http://purl.org/void/provenance/ns/processType> <http://id.southampton.ac.uk/ns/DownloadViaHTTP> .";
+					$triples[] = "<" . $uri . "#provenance> <http://id.southampton.ac.uk/ns/processType> <http://id.southampton.ac.uk/ns/DownloadViaHTTP> .";
 					$triples[] = "<" . $uri . "#provenance> <http://www.w3.org/2006/time#hasEnd> \"" . date("c", $event['time']) . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> .";
 					break;
 				case "convert":
 					if(count($event['additional']) > 0)
 					{
-						$triples[] = "<" . $uri . "#provenance> <http://purl.org/void/provenance/ns/processType> <http://id.southampton.ac.uk/ns/ConvertAndPublishDataset> .";
+						$triples[] = "<" . $uri . "#provenance> <http://id.southampton.ac.uk/ns/processType> <http://id.southampton.ac.uk/ns/ConvertAndPublishDataset> .";
 						foreach($event['additional'] as $filename)
 						{
 							$fileuri = rtrim($base_url, "/") . "/" . $filename;
-							$triples[] = "<" . $uri . "#provenance> <http://purl.org/void/provenance/ns/processIncludedFile> <" . $fileuri . "> .";
+							$triples[] = "<" . $uri . "#provenance> <http://id.southampton.ac.uk/ns/processIncludedFile> <" . $fileuri . "> .";
 						}
 						$triples[] = "<" . $uri . "#provenance> <http://www.w3.org/2006/time#hasBeginning> \"" . date("c", $this->creation_time) . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> .";
 					}
@@ -999,19 +999,19 @@ class Provenance
 					{
 						if(strlen($converttype) > -1)
 						{
-							$triples[] = "<" . $uri . "#provenance> <http://purl.org/void/provenance/ns/processType> <" . $converttype . "> .";
+							$triples[] = "<" . $uri . "#provenance> <http://id.southampton.ac.uk/ns/processType> <" . $converttype . "> .";
 						}
 						$triples[] = "<" . $uri . "#provenance> <http://www.w3.org/2006/time#hasBeginning> \"" . date("c", $event['time']) . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> .";
 					}
 					$triples[] = "<" . $uri . "#provenance> <http://www.w3.org/2006/time#hasEnd> \"" . date("c", $event['time']) . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> .";
 					break;
 			}
-			$triples[] = "<" . $uri . "#provenance> <http://purl.org/void/provenance/ns/resultingDataset> <" . $uri . "> .";
+			$triples[] = "<" . $uri . "#provenance> <http://id.southampton.ac.uk/ns/resultingDataset> <" . $uri . "> .";
 			if(strlen($fromuri) > 0)
 			{
-				$triples[] = "<" . $uri . "#provenance> <http://purl.org/void/provenance/ns/sourceDataset> <" . $fromuri . "> .";
+				$triples[] = "<" . $uri . "#provenance> <http://id.southampton.ac.uk/ns/sourceDataset> <" . $fromuri . "> .";
 			}
-			$triples[] = "<" . $uri . "#provenance> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/void/provenance/ns/ProvenanceEvent> .";
+			$triples[] = "<" . $uri . "#provenance> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://id.southampton.ac.uk/ns/ProvenanceEvent> .";
 		}
 		return(array_unique($triples));
 	}
