@@ -507,6 +507,14 @@ class Quill
 			$this->provenance->fileType($import_file, $ntriples_file_format);
 		}
 		
+		// If rapper returns a nonzero value, quit
+		if($ret_val['code'] != 0)
+		{
+			$this->errors[] = "Error generating triples.\n" . $ret_val['stderr'];
+			$errors = count($this->errors);
+			return($errors);
+		}
+
 		// If not enough triples were generated, something is wrong and we need to stop here.
 		if($triplecount <= $min_triples)
 		{
@@ -514,6 +522,7 @@ class Quill
 			$errors = count($this->errors);
 			return($errors);
 		}
+
 		if($triplecount <= $warn_triples)
 		{
 			display_error("WARNING: Only " . $triplecount . " triples generated!");
