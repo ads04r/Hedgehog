@@ -1376,14 +1376,14 @@ class Hedgehog
 			return(implode("\n", $quill->errors));
 		}
 		$graph = $this->config->xml_base . "/dataset/" . $dataset . "/latest";
-		if(!($this->quiet))
-		{
-			print("  Importing into triplestore: " . $graph . "\n");
-		}
 		$triplestore_url = "";
 		@$triplestore_url = $this->config->import_url;
 		if(strlen($triplestore_url) > 0)
 		{
+			if(!($this->quiet))
+			{
+				print("  Importing into triplestore: " . $graph . "\n");
+			}
 			$fs = new FourStore($triplestore_url);
 			$err = $fs->replace($graph, $quill->triples());
 		}
