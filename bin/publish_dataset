@@ -958,6 +958,77 @@ class Provenance
 	
 	function generateProvenance($path, $base_url)
 	{
+		$soton = $this->generateSotonProvenance($path, $base_url);
+		$prov = $this->generateProv($path, $base_url);
+		return(array_merge($soton, $prov));
+	}
+	
+	private function generateProv($path, $base_url)
+	{
+		$triples = array();
+		$checkpath = rtrim($path, "/");
+		foreach($this->log as $event)
+		{
+			$type = $event['type'];
+			$uri = rtrim($base_url, "/") . "/" . $event['to'];
+			$localfile = rtrim($path, "/") . "/" . $event['to'];
+			$fromuri = "";
+			if(strlen($event['from']) > 0)
+			{
+				if(strlen(stristr($event['from'], "://")) > 0)
+				{
+					$fromuri = $event['from'];
+				}
+				else
+				{
+					$parse = explode("/", rtrim($event['from'], "/"));
+					$fromuri = rtrim($base_url, "/") . "/" . $parse[(count($parse) - 1)];
+				}
+			}
+			if((!(file_exists($localfile))) & (!(array_key_exists($event['to'], $this->filetypes))))
+			{
+				continue;
+			}
+			switch ($type)
+			{
+				case "downloadstart":
+					$triples[] = "<" . $uri . "#provenance> <http://www.w3.org/ns/prov#startedAtTime> \"" . date("c", $event['time']) . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> .";
+					break;
+				case "downloadend":
+					$triples[] = "<" . $uri . "#provenance> <http://www.w3.org/ns/prov#endedAtTime> \"" . date("c", $event['time']) . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> .";
+					break;
+				case "convert":
+					if(count($event['additional']) > 0)
+					{
+						foreach($event['additional'] as $filename)
+						{
+							$fileuri = rtrim($base_url, "/") . "/" . $filename;
+							$triples[] = "<" . $uri . "#provenance> <http://www.w3.org/ns/prov#used> <" . $fileuri . "> .";
+							$triples[] = "<" . $fileuri . "> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/ns/prov#Entity> .";
+						}
+						$triples[] = "<" . $uri . "#provenance> <http://www.w3.org/ns/prov#startedAtTime> \"" . date("c", $this->creation_time) . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> .";
+					}
+					else
+					{
+						$triples[] = "<" . $uri . "#provenance> <http://www.w3.org/ns/prov#startedAtTime> \"" . date("c", $event['time']) . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> .";
+					}
+					$triples[] = "<" . $uri . "#provenance> <http://www.w3.org/ns/prov#endedAtTime> \"" . date("c", $event['time']) . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> .";
+					break;
+			}
+			$triples[] = "<" . $uri . "#provenance> <http://www.w3.org/ns/prov#generated> <" . $uri . "> .";
+			$triples[] = "<" . $uri . "> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/ns/prov#Entity> .";
+			if(strlen($fromuri) > 0)
+			{
+				$triples[] = "<" . $uri . "> <http://www.w3.org/ns/prov#hadPrimarySource> <" . $fromuri . "> .";
+				$triples[] = "<" . $uri . "#provenance> <http://www.w3.org/ns/prov#used> <" . $fromuri . "> .";
+			}
+			$triples[] = "<" . $uri . "#provenance> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/ns/prov#Activity> .";
+		}
+		return(array_unique($triples));
+	}
+	
+	private function generateSotonProvenance($path, $base_url)
+	{
 		$triples = array();
 		$checkpath = rtrim($path, "/");
 		foreach($this->log as $event)
@@ -1006,7 +1077,7 @@ class Provenance
 					}
 					else
 					{
-						if(strlen($converttype) > -1)
+						if(strlen($converttype) > 0)
 						{
 							$triples[] = "<" . $uri . "#provenance> <http://purl.org/void/provenance/ns/processType> <" . $converttype . "> .";
 						}
