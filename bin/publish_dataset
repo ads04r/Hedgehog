@@ -1098,7 +1098,11 @@ class Provenance
 						foreach($event['additional'] as $filename)
 						{
 							$fileuri = rtrim($base_url, "/") . "/" . $filename;
-							$triples[] = "<" . $uri . "#provenance> <http://id.southampton.ac.uk/ns/processIncludedFile> <" . $fileuri . "> .";
+							$sourcefile = preg_replace("|^(.*)/([^/]+)$|", "$2", $event['from']);
+							if(preg_match("|^(.*)/" . $sourcefile . "$|", $fileuri) == 0)
+							{
+								$triples[] = "<" . $uri . "#provenance> <http://id.southampton.ac.uk/ns/processIncludedFile> <" . $fileuri . "> .";
+							}
 						}
 						$triples[] = "<" . $uri . "#provenance> <http://www.w3.org/2006/time#hasBeginning> \"" . date("c", $this->creation_time) . "\"^^<http://www.w3.org/2001/XMLSchema#dateTime> .";
 					}
