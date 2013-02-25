@@ -443,7 +443,22 @@ class Quill
 						{
 							if(!(in_array($entry, $current_hopper)))
 							{
-								$this->provenance->logConvert("", $entry, $current_hopper);
+								if(count($this->config['downloads']) == 1)
+								{
+									$fromuri = $this->config['downloads'][0]['localfile'];
+								}
+								else
+								{
+									$fromuri = $this->config['properties']['import_file'];
+									foreach($current_hopper as $sourcefile)
+									{
+										if(strlen(stristr($command, $sourcefile)) > 0)
+										{
+											$fromuri = $sourcefile;
+										}
+									}
+								}
+								$this->provenance->logConvert($fromuri, $entry, $current_hopper);
 								$current_hopper[] = $entry;
 							}
 						}
@@ -850,6 +865,18 @@ class Quill
 	}
 }
 
+/* Class: 'Provenance'
+----------------------
+The Provenance class is designed to keep a log of everything that happens
+during a quill's lifespan, and output provenance triples if necessary. The
+class currently supports the old Southampton-style provenance method, soon
+to be deprecated, and the W3C-compliant 'PROV-O'.
+
+Usage: Once the object is created, every file conversion, download or other
+process used within the publish process should call the appropriate method.
+Before the files are pushed to their final destination, 'generateProvenance'
+should be called in order to generate the necessary provenance triples. */
+
 class Provenance
 {
 	private $log;
@@ -1017,7 +1044,7 @@ class Provenance
 			}
 			$triples[] = "<" . $uri . "#provenance> <http://www.w3.org/ns/prov#generated> <" . $uri . "> .";
 			$triples[] = "<" . $uri . "> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/ns/prov#Entity> .";
-			if(strlen($fromuri) > 0)
+			if((strlen($fromuri) > 0) & (strcmp($uri, $fromuri) != 0))
 			{
 				$triples[] = "<" . $uri . "> <http://www.w3.org/ns/prov#hadPrimarySource> <" . $fromuri . "> .";
 				$triples[] = "<" . $uri . "#provenance> <http://www.w3.org/ns/prov#used> <" . $fromuri . "> .";
@@ -1087,7 +1114,7 @@ class Provenance
 					break;
 			}
 			$triples[] = "<" . $uri . "#provenance> <http://purl.org/void/provenance/ns/resultingDataset> <" . $uri . "> .";
-			if(strlen($fromuri) > 0)
+			if((strlen($fromuri) > 0) & (strcmp($uri, $fromuri) != 0))
 			{
 				$triples[] = "<" . $uri . "#provenance> <http://purl.org/void/provenance/ns/sourceDataset> <" . $fromuri . "> .";
 			}
