@@ -75,6 +75,74 @@ class Quill
 	public $hash_checked;
 	public $provenance;
 
+	public function garbageCollect($dumps_dir) // Function to remove old versions of datasets
+	{
+		$policy = $this->config['retention'];
+		if(!(is_dir($dumps_dir)))
+		{
+			return;
+		}
+		if(!(array_key_exists("type", $policy)))
+		{
+			return;
+		}
+		$type = $policy['type'];
+		if((strcmp($type, "keeplast") != 0) & (strcmp($type, "keeprecent") != 0))
+		{
+			return;
+		}
+		if((array_key_exists("cutoff", $policy)))
+		{
+			$cutoff = (int) $policy['cutoff'];
+		}
+		else
+		{
+			$cutoff = 0;
+		}
+		if((array_key_exists("action", $policy)))
+		{
+			$action = $policy['action'];
+		}
+		else
+		{
+			$action = "delete";
+		}
+		$dumps = array();
+		if ($handle = opendir($dumps_dir)) {
+			while (false !== ($entry = readdir($handle))) {
+				$fullpath = rtrim($dumps_dir, "/") . "/" . $entry;
+				if((!(is_dir($fullpath))) | (preg_match("/^[0-9][0-9][0-9][0-9]\\-[0-9][0-9]\\-[0-9][0-9]$/", $entry) == 0))
+				{
+					continue;
+				}
+				$dumps[] = $fullpath;
+			}
+			closedir($handle);
+		}
+		rsort($dumps);
+		$i = 0;
+		$daysago = strtotime(date("Y-m-d") . " 00:00:00") - (86400 * $cutoff);
+		foreach($dumps as $fullpath)
+		{
+			$date = strtotime(preg_replace("|^(.*)/([^/]+)$|", "$2", $fullpath) . " 00:00:00");
+			$i++;
+			if(($i <= $cutoff) & (strcmp($type, "keeprecent") == 0))
+			{
+				continue;
+			}
+			if(($date >= $daysago) & (strcmp($type, "keeplast") == 0))
+			{
+				continue;
+			}
+			if(strcmp($action, "delete") == 0)
+			{
+				$this->deltree($fullpath);
+			}
+		}
+		
+		return;
+	}
+	
 	// Define a few file-related functions so we don't have to keep calling the shell.
 
 	private function deltree($dir) // Delete a non-empty directory
@@ -1491,9 +1559,15 @@ class Hedgehog
 		}
 		if(!($this->quiet))
 		{
-			print("  Publish successful\n");
+			print("  Clearing old dumps\n");
 		}
 
+		$quill->garbageCollect(rtrim($this->config->dumps_dir, "/") . "/" . $dataset);
+		if(!($this->quiet))
+		{
+			print("  Publish successful.\n");
+		}
+		
 		return "";
 	}
 	
