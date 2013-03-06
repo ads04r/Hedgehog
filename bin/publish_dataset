@@ -142,6 +142,32 @@ class Quill
 		
 		return;
 	}
+
+	// Define an archiving function for use by garbageCollect. This will hopefully be
+	// replaced one day.
+	
+	private function archive($path)
+	{
+		$fullpath = rtrim($path, "/");
+		if(!(is_dir($fullpath)))
+		{
+			return "Path " . $fullpath . " doesn't exist";
+		}
+		if(file_exists($fullpath . ".tgz"))
+		{
+			return "Archive file " . $fullpath . ".tgz already exists";
+		}
+		chdir($fullpath);
+		$tarfile = preg_replace("|^(.*)/([^/]+)$|", "$2", $fullpath) . ".tgz";
+		$command = "tar cvzf ../" . $tarfile . " *";
+		$this->externalScript($command);
+		chdir("..");
+		if(!(file_exists($fullpath . ".tgz")))
+		{
+			return "Archive file " . $fullpath . ".tgz not created for an unknown reason";
+		}
+		$this->deltree($fullpath);
+	}
 	
 	// Define a few file-related functions so we don't have to keep calling the shell.
 
@@ -429,6 +455,10 @@ class Quill
 				{
 					print("    " . str_replace("\n", "\n    ", $file_output['stdout']) . "\n");
 				}
+				if(strlen($file_output['stderr']) > 0)
+				{
+					display_error($file_output['stdout']);
+				}
 			}
 		}
 		
@@ -502,7 +532,10 @@ class Quill
 				{
 					print("    " . str_replace("\n", "\n    ", $file_output['stdout']) . "\n");
 				}
-
+				if(strlen($file_output['stderr']) > 0)
+				{
+					display_error($file_output['stdout']);
+				}
 				if ($fh = opendir($this->hopper_path))
 				{
 					while (false !== ($entry = readdir($fh)))
