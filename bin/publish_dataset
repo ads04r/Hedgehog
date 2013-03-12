@@ -75,6 +75,16 @@ class Quill
 	public $hash_checked;
 	public $provenance;
 
+	public function dumps()
+	{
+		$prop = $this->config['properties'];
+		if(array_key_exists("accessurl", $prop))
+		{
+			return($prop['accessurl']);
+		}
+		return array();
+	}
+	
 	public function garbageCollect($dumps_dir) // Function to remove old versions of datasets
 	{
 		$policy = $this->config['retention'];
@@ -688,6 +698,15 @@ class Quill
 		{
 			$localfile = $dumpfile['filename'];
 			$format = $dumpfile['format'];
+			if(strcmp($format, "kml") == 0)
+			{
+				$this->dumpKml($localfile);
+				continue;
+			}
+			if(!((strcmp($format, "turtle") == 0) | (strcmp($format, "rdfxml") == 0)))
+			{
+				continue;
+			}
 			$triples_filename = preg_replace("|^(.*)/([^/]+)$|", "$2", $this->triples_file);
 			$rdffile = $this->hopper_path . "/" . $localfile;
 			$cmd_line = $rapper . " -i ntriples -o " . $format . " " . $this->triples_file . " | sed s#\\<file\\:[^\\>]*" . $triples_filename . "\\>#\\<\\># | sed s#\\<file\\:[^\\>]*" . $localfile . "\\>#\\<\\># > " . $rdffile;
@@ -717,6 +736,16 @@ class Quill
 		return(count($this->errors));
 	}
 
+	private function dumpKml($filename)
+	{
+		$kmlfile = $this->hopper_path . "/" . $filename;
+		$g = new Graphite();
+		$g->load($this->triples_file);
+		$fp = fopen($kmlfile, "w");
+		fwrite($fp, $g->toKml());
+		fclose($fp);
+	}
+	
 	public function runCompletedScripts()
 	{
 		chdir($this->hopper_path);
@@ -822,6 +851,29 @@ class Quill
 		if(!(file_exists($rdffile)))
 		{
 			$this->provenance->logConvert($import_file, $filename, array(), $format);
+		}
+	}
+	
+	public function requestKMLDump($filename, $uri="")
+	{
+		if(!(class_exists("Graphite")))
+		{
+			$this->errors[] = "Cannot create KML files - Graphite not registered.";
+			$errors = count($this->errors);
+			return;
+		}
+	
+		$item = array();
+		$item['filename'] = preg_replace("|^(.*)/([^/]+)$|", "$2", $filename);
+		$item['uri'] = $uri;
+		$item['format'] = "kml";
+		$this->dumpfiles[] = $item;
+
+		$rdffile = $this->hopper_path . "/" . $filename;
+		$import_file = preg_replace("|^(.*)/([^/]+)$|", "$2", $this->config['properties']['import_file']);
+		if(!(file_exists($rdffile)))
+		{
+			$this->provenance->logConvert($import_file, $filename, array(), "kml");
 		}
 	}
 
@@ -1521,6 +1573,7 @@ class Hedgehog
 		{
 			return("Cannot open quill '" . $dataset . "': " . $e->getMessage());
 		}
+		
 		$dump = rtrim($this->config->dumps_dir, "/") . "/" . $dataset . "/" . $dumpdate;
 		if(!($this->quiet))
 		{
@@ -1554,19 +1607,24 @@ class Hedgehog
 		
 		// Dump files
 		$dump_base = $this->config->target_base_url;
-		if(strlen($dump_base) > 0)
+		foreach($quill->dumps() as $dump_request)
 		{
-			$xmluri = $dump_base . "/" . $dataset . "/" . $dumpdate . "/" . $dataset . ".rdf";
-			//$xmluri = "";
-			$ttluri = $dump_base . "/" . $dataset . "/" . $dumpdate . "/" . $dataset . ".ttl";
+			$ext = strtolower(preg_replace("/^(.*)\.([a-zA-Z0-9]*)$/", "$2", $dump_request));
+			$dumpuri = $dump_base . "/" . $dataset . "/" . $dumpdate . "/" . $dataset . "." . $ext;
+			//$quill->requestRdfDump($dataset
+			if(strcmp($ext, "ttl") == 0)
+			{
+				$quill->requestRdfDump($dataset . ".ttl", $dumpuri, "turtle");
+			}
+			if(strcmp($ext, "rdf") == 0)
+			{
+				$quill->requestRdfDump($dataset . ".rdf", $dumpuri, "rdfxml");
+			}
+			if(strcmp($ext, "kml") == 0)
+			{
+				$quill->requestKmlDump($dataset . ".kml", $dumpuri);
+			}
 		}
-		else
-		{
-			$xmluri = "";
-			$ttluri = "";
-		}
-		$quill->requestRdfDump($dataset . ".rdf", $xmluri, "rdfxml");
-		$quill->requestRdfDump($dataset . ".ttl", $ttluri, "turtle");
 		
 		if(!($this->quiet))
 		{
@@ -1609,6 +1667,14 @@ class Hedgehog
 		$this->quiet = $quiet;
 		$this->force = $force;
 		$this->config = new HedgehogConfig();
+		
+		$arc2path = $this->config->arc2_path;
+		$graphitepath = $this->config->graphite_path;
+		if((strlen($graphitepath) > 0) & (strlen($arc2path) > 0) & (file_exists($graphitepath)) & (file_exists($arc2path)))
+		{
+			include_once($arc2path);
+			include_once($graphitepath);
+		}
 	}
 	
 }
