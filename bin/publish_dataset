@@ -1547,6 +1547,18 @@ class Hedgehog
 	private $quiet;
 	private $force;
 
+	private function getSetting($quill, $setting)
+	{
+		if(array_key_exists("settings_override", $quill->config))
+		{
+			if(array_key_exists($setting, $quill->config['settings_override']))
+			{
+				return($quill->config['settings_override'][$setting]);
+			}
+		}
+		return($this->config->$setting);
+	}
+
 	public function publishDataset($dataset)
 	{
 		$quills = $this->config->quills_dir;
@@ -1574,7 +1586,8 @@ class Hedgehog
 			return("Cannot open quill '" . $dataset . "': " . $e->getMessage());
 		}
 		
-		$dump = rtrim($this->config->dumps_dir, "/") . "/" . $dataset . "/" . $dumpdate;
+		$dump = rtrim($this->getSetting($quill, "dumps_dir"), "/") . "/" . $dataset . "/" . $dumpdate;
+
 		if(!($this->quiet))
 		{
 			print("Processing quill '" . $dataset . "'\n");
@@ -1583,13 +1596,13 @@ class Hedgehog
 		{
 			print("  Preparing data for publish\n");
 		}
-		$errors = $quill->prepare($this->quiet, $this->config->tools_dir);
+		$errors = $quill->prepare($this->quiet, $this->getSetting($quill, "tools_dir"));
 		if($errors > 0)
 		{
 			return(implode("\n", $quill->errors));
 		}
 		
-		$hash_file = rtrim($this->config->hashes_dir, "/") . "/" . $dataset . ".hash";
+		$hash_file = rtrim($this->getSetting($quill, "hashes_dir"), "/") . "/" . $dataset . ".hash";
 		$changed = $quill->changedFiles($hash_file);
 		if((!($changed)) & (!($this->force)))
 		{
@@ -1606,7 +1619,7 @@ class Hedgehog
 		}
 		
 		// Dump files
-		$dump_base = $this->config->target_base_url;
+		$dump_base = $this->getSetting($quill, "target_base_url");
 		foreach($quill->dumps() as $dump_request)
 		{
 			$ext = strtolower(preg_replace("/^(.*)\.([a-zA-Z0-9]*)$/", "$2", $dump_request));
@@ -1630,15 +1643,15 @@ class Hedgehog
 		{
 			print("  Publishing data to " . $dump . "\n");
 		}
-		$dataset_uri = $this->config->xml_base . "/dataset/" . $dataset;
+		$dataset_uri = $this->getSetting($quill, "xml_base") . "/dataset/" . $dataset;
 		$errors = $quill->publish($dump, $dump_base . "/" . $dataset . "/" . $dumpdate, $dataset_uri, $this->quiet);
 		if($errors > 0)
 		{
 			return(implode("\n", $quill->errors));
 		}
-		$graph = $this->config->xml_base . "/dataset/" . $dataset . "/latest";
+		$graph = $this->getSetting($quill, "xml_base") . "/dataset/" . $dataset . "/latest";
 		$triplestore_url = "";
-		@$triplestore_url = $this->config->import_url;
+		@$triplestore_url = $this->getSetting($quill, "import_url");
 		if(strlen($triplestore_url) > 0)
 		{
 			if(!($this->quiet))
@@ -1653,7 +1666,7 @@ class Hedgehog
 			print("  Clearing old dumps\n");
 		}
 
-		$quill->garbageCollect(rtrim($this->config->dumps_dir, "/") . "/" . $dataset);
+		$quill->garbageCollect(rtrim($this->getSetting($quill, "dumps_dir"), "/") . "/" . $dataset);
 		if(!($this->quiet))
 		{
 			print("  Publish successful.\n");
