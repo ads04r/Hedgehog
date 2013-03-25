@@ -1561,10 +1561,20 @@ class Hedgehog
 
 	public function publishDataset($dataset)
 	{
-		$quills = $this->config->quills_dir;
+		$quills_dir_list = explode(":", $this->config->quills_dir);
 		$tmp = $this->config->tmp_dir;
 		$dumpdate = date("Y-m-d");
 
+		$quills = "";
+		foreach($quills_dir_list as $quills_dir)
+		{
+			$quills_dir_check = rtrim($quills_dir, "/") . "/" . $dataset . "/publish.json";
+			if(file_exists($quills_dir_check))
+			{
+				$quills = $quills_dir;
+				break;
+			}
+		}
 		$cfg = rtrim($quills, "/") . "/" . $dataset . "/publish.json";
 		if(!(file_exists($cfg)))
 		{
