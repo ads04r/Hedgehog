@@ -463,11 +463,16 @@ class Quill
 				}
 				if((!($quiet)) & (strlen($file_output['stdout']) > 0))
 				{
-					print("    " . str_replace("\n", "\n    ", $file_output['stdout']) . "\n");
+					$stdout = trim($file_output['stdout']);
+					if(strlen($stdout > 0))
+					{
+						print("    " . str_replace("\n", "\n    ", $stdout) . "\n");
+					}
 				}
-				if(strlen($file_output['stderr']) > 0)
+				$stderr = trim($file_output['stderr']);
+				if((!($quiet)) & (strlen($stderr) > 0))
 				{
-					display_error($file_output['stdout']);
+					display_error("    " . str_replace("\n", "\n    ", $stderr));
 				}
 			}
 		}
@@ -540,11 +545,16 @@ class Quill
 				}
 				if((!($quiet)) & (strlen($file_output['stdout']) > 0))
 				{
-					print("    " . str_replace("\n", "\n    ", $file_output['stdout']) . "\n");
+					$stdout = trim($file_output['stdout']);
+					if(strlen($stdout) > 0)
+					{
+						print("    " . str_replace("\n", "\n    ", $stdout) . "\n");
+					}
 				}
-				if(strlen($file_output['stderr']) > 0)
+				$stderr = trim($file_output['stderr']);
+				if((!($quiet)) & (strlen($file_output['stderr']) > 0))
 				{
-					display_error($file_output['stdout']);
+					display_error("    " . str_replace("\n", "\n    ", $stdout));
 				}
 				if ($fh = opendir($this->hopper_path))
 				{
@@ -636,7 +646,7 @@ class Quill
 		// If rapper returns a nonzero value, quit
 		if($ret_val['code'] != 0)
 		{
-			$this->errors[] = "Error generating triples.\n" . $ret_val['stderr'];
+			$this->errors[] = "Error generating triples.\n    " . str_replace("\n", "\n    ", trim($ret_val['stderr']));
 			$errors = count($this->errors);
 			return($errors);
 		}
@@ -644,7 +654,7 @@ class Quill
 		// If not enough triples were generated, something is wrong and we need to stop here.
 		if($triplecount <= $min_triples)
 		{
-			$this->errors[] = "Error generating triples.\n" . $ret_val['stderr'];
+			$this->errors[] = "Error generating triples.\n    " . str_replace("\n", "\n    ", trim($ret_val['stderr']));
 			$errors = count($this->errors);
 			return($errors);
 		}
