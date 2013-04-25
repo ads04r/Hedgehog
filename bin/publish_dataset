@@ -554,7 +554,7 @@ class Quill
 				$stderr = trim($file_output['stderr']);
 				if((!($quiet)) & (strlen($file_output['stderr']) > 0))
 				{
-					display_error("    " . str_replace("\n", "\n    ", $stdout));
+					display_error("    " . str_replace("\n", "\n    ", $stderr));
 				}
 				if ($fh = opendir($this->hopper_path))
 				{
