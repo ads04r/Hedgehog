@@ -1287,7 +1287,7 @@ class Provenance
 			{
 				$triples[] = "<" . $uri . "#provenance> <http://purl.org/void/provenance/ns/sourceDataset> <" . $fromuri . "> .";
 			}
-			$triples[] = "<" . $uri . "#provenance> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/void/provenance/ns/ProvenenceEvent> .";
+			$triples[] = "<" . $uri . "#provenance> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/void/provenance/ns/ProvenanceEvent> .";
 		}
 		return(array_unique($triples));
 	}
