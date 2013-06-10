@@ -714,6 +714,11 @@ class Quill
 				$this->dumpKml($localfile);
 				continue;
 			}
+			if(strcmp($format, "ics") == 0)
+			{
+				$this->dumpIcs($localfile);
+				continue;
+			}
 			if(!((strcmp($format, "turtle") == 0) | (strcmp($format, "rdfxml") == 0)))
 			{
 				continue;
@@ -754,6 +759,16 @@ class Quill
 		$g->load($this->triples_file);
 		$fp = fopen($kmlfile, "w");
 		fwrite($fp, $g->toKml());
+		fclose($fp);
+	}
+	
+	private function dumpIcs($filename)
+	{
+		$icsfile = $this->hopper_path . "/" . $filename;
+		$g = new Graphite();
+		$g->load($this->triples_file);
+		$fp = fopen($icsfile, "w");
+		fwrite($fp, $g->toIcs());
 		fclose($fp);
 	}
 	
