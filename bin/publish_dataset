@@ -903,6 +903,29 @@ class Quill
 		}
 	}
 
+	public function requestICSDump($filename, $uri="")
+	{
+		if(!(class_exists("Graphite")))
+		{
+			$this->errors[] = "Cannot create ICS files - Graphite not registered.";
+			$errors = count($this->errors);
+			return;
+		}
+	
+		$item = array();
+		$item['filename'] = preg_replace("|^(.*)/([^/]+)$|", "$2", $filename);
+		$item['uri'] = $uri;
+		$item['format'] = "ics";
+		$this->dumpfiles[] = $item;
+
+		$rdffile = $this->hopper_path . "/" . $filename;
+		$import_file = preg_replace("|^(.*)/([^/]+)$|", "$2", $this->config['properties']['import_file']);
+		if(!(file_exists($rdffile)))
+		{
+			$this->provenance->logConvert($import_file, $filename, array(), "ics");
+		}
+	}
+
 	// The following three functions handle hash checks. The hashCheck function isn't
 	// public because it has side effects, so it may return different results if
 	// called twice during the same process, which we don't really want. The
@@ -1671,7 +1694,11 @@ class Hedgehog
 			}
 			if(strcmp($ext, "kml") == 0)
 			{
-				$quill->requestKmlDump($dataset . ".kml", $dumpuri);
+				$quill->requestKMLDump($dataset . ".kml", $dumpuri);
+			}
+			if(strcmp($ext, "ics") == 0)
+			{
+				$quill->requestICSDump($dataset . ".ics", $dumpuri);
 			}
 		}
 		
