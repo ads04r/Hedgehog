@@ -686,6 +686,7 @@ class Quill
 			$ttl = $this->dumpFileMetadata($uri);
 			$ttl[] = "<" . $uri . "> <http://purl.org/dc/terms/isPartOf> <" . $dataset_uri . "> .";
 			$fp = fopen($this->triples_file, "a");
+			$triplecount = $triplecount + count($ttl);
 			foreach($ttl as $triple)
 			{
 				fwrite($fp, $triple . "\n");
@@ -696,6 +697,17 @@ class Quill
 		// Add provenance
 		$ttl = $this->provenance->generateProvenance($this->hopper_path, $remotepath);
 		//print(implode("\n", $ttl) . "\n");
+		$fp = fopen($this->triples_file, "a");
+		$triplecount = $triplecount + count($ttl);
+		foreach($ttl as $triple)
+		{
+			fwrite($fp, $triple . "\n");
+		}
+		fclose($fp);
+
+		// Add statistics (eg triple count)
+		$ttl = array();
+		$ttl[] = "<" . $dataset_uri . "> <http://id.southampton.ac.uk/ns/tripleCount> \"" . ($triplecount + 1) . "\"^^<http://www.w3.org/2001/XMLSchema#NonNegativeInteger> ."; // IMPORTANT! ALWAYS do this last, or the triple count will be wrong!
 		$fp = fopen($this->triples_file, "a");
 		foreach($ttl as $triple)
 		{
