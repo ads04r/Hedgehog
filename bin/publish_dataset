@@ -707,7 +707,7 @@ class Quill
 
 		// Add statistics (eg triple count)
 		$ttl = array();
-		$ttl[] = "<" . $dataset_uri . "> <http://id.southampton.ac.uk/ns/tripleCount> \"" . ($triplecount + 1) . "\"^^<http://www.w3.org/2001/XMLSchema#NonNegativeInteger> ."; // IMPORTANT! ALWAYS do this last, or the triple count will be wrong!
+		$ttl[] = "<" . $dataset_uri . "> <http://rdfs.org/ns/void#triples> \"" . ($triplecount + 1) . "\"^^<http://www.w3.org/2001/XMLSchema#NonNegativeInteger> ."; // IMPORTANT! ALWAYS do this last, or the triple count will be wrong!
 		$fp = fopen($this->triples_file, "a");
 		foreach($ttl as $triple)
 		{
