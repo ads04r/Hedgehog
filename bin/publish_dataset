@@ -1388,6 +1388,18 @@ class HedgehogConfig extends ArrayObject
 					{
 						continue;
 					}
+
+					$json = json_decode(file_get_contents($full_path), true);
+					if(is_array($json))
+					{
+						foreach($json as $k => $v)
+						{
+							$r[$k] = $v;
+						}
+
+						continue;
+					}
+
 					$lines = file($full_path);
 					foreach($lines as $line)
 					{
@@ -1532,6 +1544,98 @@ function display_error($text)
 	file_put_contents('php://stderr', $text . "\n");
 }
 
+class SesameStore
+{
+	private $url;
+	private $max_triples;
+
+	private function replace_chunk($graph, $triples)
+	{
+		$url = $this->url;
+		$data = implode("\n", $triples);
+		$ch = curl_init();
+		$fullurl = $url . "?context=" . urlencode("<" . $graph . ">") . "&baseURI=" . urlencode("<" . $graph . ">");
+		curl_setopt($ch, CURLOPT_URL, $fullurl);
+		curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: application/x-turtle','Content-Length: ' . strlen($data)));
+		curl_setopt($ch, CURLOPT_VERBOSE, 0);
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+		curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "PUT"); 
+		curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
+		$r = trim(curl_exec($ch));
+		//$err = curl_errno($ch);
+		//$cherrmsg = curl_error($ch);
+		curl_close($ch);
+
+		return($r);
+	}
+	
+	private function append_chunk($graph, $triples)
+	{
+		$url = $this->url;
+		$data = implode("\n", $triples);
+		$ch = curl_init();
+		$fullurl = $url . "?context=" . urlencode("<" . $graph . ">") . "&baseURI=" . urlencode("<" . $graph . ">");
+		curl_setopt($ch, CURLOPT_URL, $fullurl);
+		curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: application/x-turtle','Content-Length: ' . strlen($data)));
+		curl_setopt($ch, CURLOPT_VERBOSE, 0);
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+		curl_setopt($ch, CURLOPT_POST, true);
+		curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
+		$r = trim(curl_exec($ch));
+		//$err = curl_errno($ch);
+		//$cherrmsg = curl_error($ch);
+		curl_close($ch);
+
+		return($r);
+	}
+	
+	private function append_chunk_old($graph, $triples)
+	{
+		$url = $this->url;
+		$data = implode("\n", $triples);
+		$postdata = array('graph' => $graph, 'data' => $data, 'mime-type' => 'application/x-turtle');
+		$ch = curl_init();
+		curl_setopt($ch, CURLOPT_URL, $url);
+		curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: application/x-www-form-urlencoded'));
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+		curl_setopt($ch, CURLOPT_POST, true);
+		curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postdata));
+		$r = trim(curl_exec($ch));
+		curl_close($ch);	
+		
+		return($r);
+	}
+	
+	public function replace($graph, $triples)
+	{
+		$r = array();
+		$c = count($triples);
+		if($c <= $this->max_triples)
+		{
+			$r[] = $this->replace_chunk($graph, $triples);
+			return($r);
+		}
+		$i = $this->max_triples;
+		$chunk = array_slice($triples, 0, $this->max_triples);
+		$r[] = $this->replace_chunk($graph, $chunk);
+		while($i < $c)
+		{
+			$chunk = array_slice($triples, $i, $this->max_triples);
+			$r[] = $this->append_chunk($graph, $chunk);
+			$i = $i + $this->max_triples;
+		}
+		return($r);
+	}
+	
+	function __construct($url, $max_triples=10000)
+	{
+		$this->url = $url;
+		$this->max_triples = $max_triples;
+	}
+}
+
 class FourStore
 {
 	private $url;
@@ -1539,6 +1643,8 @@ class FourStore
 
 	private function replace_chunk($graph, $triples)
 	{
+		print("Adding...\n");
+
 		$url = $this->url;
 		$data = implode("\n", $triples);
 		$ch = curl_init();
@@ -1729,12 +1835,35 @@ class Hedgehog
 		@$triplestore_url = $this->getSetting($quill, "import_url");
 		if(strlen($triplestore_url) > 0)
 		{
-			if(!($this->quiet))
+			$actset = $this->getSetting($quill, "publish_actions");
+			if(is_array($actset))
 			{
-				print("  Importing into triplestore: " . $graph . "\n");
+				$actions = $actset;
 			}
-			$fs = new FourStore($triplestore_url);
-			$err = $fs->replace($graph, $quill->triples());
+			else
+			{
+				$actions = explode(" ", $actset);
+			}
+
+			if(in_array("sesame", $actions))
+			{
+				if(!($this->quiet))
+				{
+					print("  Importing into Sesame store: " . $graph . "\n");
+				}
+				$fs = new SesameStore($triplestore_url);
+				$err = $fs->replace($graph, $quill->triples());
+			}
+
+			else
+			{
+				if(!($this->quiet))
+				{
+					print("  Importing into 4store: " . $graph . "\n");
+				}
+				$fs = new FourStore($triplestore_url);
+				$err = $fs->replace($graph, $quill->triples());
+			}
 		}
 		if(!($this->quiet))
 		{
