@@ -1763,8 +1763,6 @@ class Hedgehog
 			return("Cannot open quill '" . $dataset . "': " . $e->getMessage());
 		}
 		
-		$dump = rtrim($this->getSetting($quill, "dumps_dir"), "/") . "/" . $dataset . "/" . $dumpdate;
-
 		if(!($this->quiet))
 		{
 			print("Processing quill '" . $dataset . "'\n");
@@ -1795,57 +1793,131 @@ class Hedgehog
 			return "";
 		}
 		
-		// Dump files
-		$dump_base = $this->getSetting($quill, "target_base_url");
-		foreach($quill->dumps() as $dump_request)
-		{
-			$ext = strtolower(preg_replace("/^(.*)\.([a-zA-Z0-9]*)$/", "$2", $dump_request));
-			$dumpuri = $dump_base . "/" . $dataset . "/" . $dumpdate . "/" . $dataset . "." . $ext;
-			//$quill->requestRdfDump($dataset
-			if(strcmp($ext, "ttl") == 0)
-			{
-				$quill->requestRdfDump($dataset . ".ttl", $dumpuri, "turtle");
-			}
-			if(strcmp($ext, "rdf") == 0)
-			{
-				$quill->requestRdfDump($dataset . ".rdf", $dumpuri, "rdfxml");
-			}
-			if(strcmp($ext, "kml") == 0)
-			{
-				$quill->requestKMLDump($dataset . ".kml", $dumpuri);
-			}
-			if(strcmp($ext, "ics") == 0)
-			{
-				$quill->requestICSDump($dataset . ".ics", $dumpuri);
-			}
-		}
+		// Generate the publish chain of events
 		
-		if(!($this->quiet))
+		$dump_root = $this->getSetting($quill, "dumps_dir");
+		$dump_base = $this->getSetting($quill, "target_base_url");
+		$dump_quill_root = rtrim($dump_root, "/") . "/" . $dataset;
+		$global_import_url = $this->getSetting($quill, "import_url");
+		$publish_events = $this->getSetting($quill, "publish");
+		$legacy_publish_actions = $this->getSetting($quill, "publish_actions");
+		if(!(is_array($legacy_publish_actions)))
 		{
-			print("  Publishing data to " . $dump . "\n");
-		}
-		$dataset_uri = $this->getSetting($quill, "xml_base") . "/dataset/" . $dataset;
-		$errors = $quill->publish($dump, $dump_base . "/" . $dataset . "/" . $dumpdate, $dataset_uri, $this->quiet);
-		if($errors > 0)
-		{
-			return(implode("\n", $quill->errors));
-		}
-		$graph = $this->getSetting($quill, "xml_base") . "/dataset/" . $dataset . "/latest";
-		$triplestore_url = "";
-		@$triplestore_url = $this->getSetting($quill, "import_url");
-		if(strlen($triplestore_url) > 0)
-		{
-			$actset = $this->getSetting($quill, "publish_actions");
-			if(is_array($actset))
+			if(strlen($legacy_publish_actions) == 0)
 			{
-				$actions = $actset;
+				$legacy_publish_actions = array();
 			}
 			else
 			{
-				$actions = explode(" ", $actset);
+				$legacy_publish_actions = explode(" ", $legacy_publish_actions);
 			}
-
-			if(in_array("sesame", $actions))
+		}
+		if(!(is_array($publish_events)))
+		{
+			$publish_events = array();
+		}
+		
+		if((file_exists($dump_root)) & (count($publish_events) == 0))
+		{
+			$item = array();
+			$item['action'] = "dump";
+			$item['url'] = $dump_base;
+			$item['path'] = $dump_root;
+			$publish_events[] = $item;
+			
+			if(strlen($global_import_url) > 0)
+			{
+				$item = array();
+				if(in_array("sesame", $legacy_publish_actions))
+				{
+					$item['action'] = "sesame";
+				}
+				else
+				{
+					$item['action'] = "4store";
+				}
+				$item['url'] = $global_import_url;
+				$publish_events[] = $item;
+			}
+		}
+		
+		// Dump files
+		
+		foreach($publish_events as $publish_event)
+		{
+			if(strcmp($publish_event['action'], "dump") != 0)
+			{
+				continue;
+			}
+		
+			$dump_root = $publish_event['path'];
+			$dump_base = $publish_event['url'];
+			$dump_quill_root = rtrim($dump_root, "/") . "/" . $dataset;
+			$dump = $dump_quill_root . "/" . $dumpdate;
+			if(array_key_exists("base", $publish_event))
+			{
+				$xml_base = $publish_event['base'];
+			}
+			else
+			{
+				$xml_base = $this->getSetting($quill, "xml_base");
+			}
+			foreach($quill->dumps() as $dump_request)
+			{
+				$ext = strtolower(preg_replace("/^(.*)\.([a-zA-Z0-9]*)$/", "$2", $dump_request));
+				$dumpuri = $dump_base . "/" . $dataset . "/" . $dumpdate . "/" . $dataset . "." . $ext;
+				if(strcmp($ext, "ttl") == 0)
+				{
+					$quill->requestRdfDump($dataset . ".ttl", $dumpuri, "turtle");
+				}
+				if(strcmp($ext, "rdf") == 0)
+				{
+					$quill->requestRdfDump($dataset . ".rdf", $dumpuri, "rdfxml");
+				}
+				if(strcmp($ext, "kml") == 0)
+				{
+					$quill->requestKMLDump($dataset . ".kml", $dumpuri);
+				}
+				if(strcmp($ext, "ics") == 0)
+				{
+					$quill->requestICSDump($dataset . ".ics", $dumpuri);
+				}
+			}
+			
+			if(!($this->quiet))
+			{
+				print("  Publishing data to " . $dump . "\n");
+			}
+			$dataset_uri = $xml_base . "/dataset/" . $dataset;
+			$errors = $quill->publish($dump, $dump_base . "/" . $dataset . "/" . $dumpdate, $dataset_uri, $this->quiet);
+			if($errors > 0)
+			{
+				return(implode("\n", $quill->errors));
+			}
+		}
+		
+		// Publish to triplestore(s)
+		
+		foreach($publish_events as $publish_event)
+		{
+			if((strcmp($publish_event['action'], "sesame") != 0) & (strcmp($publish_event['action'], "4store") != 0))
+			{
+				continue;
+			}
+			
+			if(array_key_exists("base", $publish_event))
+			{
+				$xml_base = $publish_event['base'];
+			}
+			else
+			{
+				$xml_base = $this->getSetting($quill, "xml_base");
+			}
+			$graph = $xml_base . "/dataset/" . $dataset . "/latest";
+			$triplestore_url = $publish_event['url'];
+			$triplestore_type = $publish_event['action'];
+			
+			if(strcmp("sesame", $triplestore_type) == 0)
 			{
 				if(!($this->quiet))
 				{
@@ -1855,7 +1927,7 @@ class Hedgehog
 				$err = $fs->replace($graph, $quill->triples());
 			}
 
-			else
+			if(strcmp("4store", $triplestore_type) == 0)
 			{
 				if(!($this->quiet))
 				{
@@ -1864,13 +1936,29 @@ class Hedgehog
 				$fs = new FourStore($triplestore_url);
 				$err = $fs->replace($graph, $quill->triples());
 			}
+
 		}
-		if(!($this->quiet))
+		
+		// Clear old dumps if necessary
+		
+		foreach($publish_events as $publish_event)
 		{
-			print("  Clearing old dumps\n");
+			if(strcmp($publish_event['action'], "dump") != 0)
+			{
+				continue;
+			}
+		
+			$dump_root = $publish_event['path'];
+			
+			if(!($this->quiet))
+			{
+				print("  Clearing old dumps\n");
+			}
+			$quill->garbageCollect(rtrim($dump_root, "/") . "/" . $dataset);
 		}
 
-		$quill->garbageCollect(rtrim($this->getSetting($quill, "dumps_dir"), "/") . "/" . $dataset);
+		// Finish up
+		
 		if(!($this->quiet))
 		{
 			print("  Publish successful.\n");
