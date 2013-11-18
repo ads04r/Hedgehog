@@ -1643,8 +1643,6 @@ class FourStore
 
 	private function replace_chunk($graph, $triples)
 	{
-		print("Adding...\n");
-
 		$url = $this->url;
 		$data = implode("\n", $triples);
 		$ch = curl_init();
@@ -1656,8 +1654,6 @@ class FourStore
 		curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
 		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
 		$r = trim(curl_exec($ch));
-		//$err = curl_errno($ch);
-		//$cherrmsg = curl_error($ch);
 		curl_close($ch);
 		
 		return($r);
