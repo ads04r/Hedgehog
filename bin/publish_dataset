@@ -232,8 +232,30 @@ class Quill
 	}
 	
 	private function ensureDirExists($path)
+	/*
+		I've written this function, despite the fact that it duplicates the behaviour of
+		mkdir([path], [perm], true) - the reason being that different versions of PHP
+		behave in different ways. To ensure consistency, I've written my own version of
+		the function.
+	*/
 	{
-		@mkdir($path, 0755, true);
+		$patharr = explode("/", $path);
+		$rpath = "";
+		foreach($patharr as $dir)
+		{
+			$ddir = trim($dir);
+			if(strlen($ddir) == 0)
+			{
+				continue;
+			}
+			$rpath = $rpath .= "/" . $ddir;
+			if(is_dir($rpath))
+			{
+				continue;
+			}
+			mkdir($rpath, 0755);
+		}
+
 		return(is_dir($path));
 	}
 
