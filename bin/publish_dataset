@@ -291,7 +291,9 @@ class Quill
 				fwrite($fp, $data);
 				fclose($fp);
 			}
+			$httpCode = 0;
 		}
+		return($httpCode);
 	}
 
 	// A function to handle external processes better than shell_exec.
@@ -421,10 +423,10 @@ class Quill
 			if((array_key_exists("localfile", $download)) & (array_key_exists("download", $download)))
 			{
 				$this->provenance->logDownloadStart($download['download'], $download['localfile']);
-				$this->wget($download['download'], $download['localfile']);
+				$httpCode = $this->wget($download['download'], $download['localfile']);
 				if(!(file_exists($download['localfile'])))
 				{
-					$this->errors[] = "Could not download " . $download['download'];
+					$this->errors[] = "Error " . $httpCode . ", could not download " . $download['download'];
 				}
 				$this->provenance->logDownloadEnd($download['download'], $download['localfile']);
 			}
@@ -1574,9 +1576,14 @@ class SesameStore
 	private function replace_chunk($graph, $triples)
 	{
 		$url = $this->url;
-		$data = implode("\n", $triples);
+		$data = trim(str_replace("\n\n", "\n", implode("\n", $triples)));
+
+		$fp = fopen("/var/wwwsites/debug.nt", "w");
+		fwrite($fp, $data);
+		fclose($fp);
+
 		$ch = curl_init();
-		$fullurl = $url . "?context=" . urlencode("<" . $graph . ">") . "&baseURI=" . urlencode("<" . $graph . ">");
+		$fullurl = $url . "?continueOnError=true&context=" . urlencode("<" . $graph . ">") . "&baseURI=" . urlencode("<" . $graph . ">");
 		curl_setopt($ch, CURLOPT_URL, $fullurl);
 		curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: application/x-turtle','Content-Length: ' . strlen($data)));
 		curl_setopt($ch, CURLOPT_VERBOSE, 0);
@@ -1595,9 +1602,9 @@ class SesameStore
 	private function append_chunk($graph, $triples)
 	{
 		$url = $this->url;
-		$data = implode("\n", $triples);
+		$data = trim(implode("\n", $triples));
 		$ch = curl_init();
-		$fullurl = $url . "?context=" . urlencode("<" . $graph . ">") . "&baseURI=" . urlencode("<" . $graph . ">");
+		$fullurl = $url . "?continueOnError=true&context=" . urlencode("<" . $graph . ">") . "&baseURI=" . urlencode("<" . $graph . ">");
 		curl_setopt($ch, CURLOPT_URL, $fullurl);
 		curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: application/x-turtle','Content-Length: ' . strlen($data)));
 		curl_setopt($ch, CURLOPT_VERBOSE, 0);
@@ -1613,25 +1620,23 @@ class SesameStore
 		return($r);
 	}
 	
-	private function append_chunk_old($graph, $triples)
+	public function replace($graph, $triples_unproc)
 	{
-		$url = $this->url;
-		$data = implode("\n", $triples);
-		$postdata = array('graph' => $graph, 'data' => $data, 'mime-type' => 'application/x-turtle');
-		$ch = curl_init();
-		curl_setopt($ch, CURLOPT_URL, $url);
-		curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: application/x-www-form-urlencoded'));
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-		curl_setopt($ch, CURLOPT_POST, true);
-		curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postdata));
-		$r = trim(curl_exec($ch));
-		curl_close($ch);	
+		function unspace_uris($triple)
+		{
+			$trp = $triple;
+			$m = array();
+			if(preg_match("|<([^<>]*)://([^<>]*) ([^<>]*)>|", $trp, $m) > 0)
+			{
+				$trp = str_replace($m[0], str_replace(" ", "%20", $m[0]), $trp);
+			}
+			return($trp);
+		}
 		
-		return($r);
-	}
-	
-	public function replace($graph, $triples)
-	{
+		$triples = array_map('unspace_uris', $triples_unproc);
+
+		//var_dump($triples); exit();
+
 		$r = array();
 		$c = count($triples);
 		if($c <= $this->max_triples)
@@ -1943,6 +1948,15 @@ class Hedgehog
 				}
 				$fs = new SesameStore($triplestore_url);
 				$err = $fs->replace($graph, $quill->triples());
+				if(count($err) > 0)
+				{
+					$error_text = $err[0];
+					if(strlen($error_text) > 0)
+					{
+						return($error_text);
+
+					}
+				}
 			}
 
 			if(strcmp("4store", $triplestore_type) == 0)
