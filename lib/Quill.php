@@ -770,6 +770,26 @@ class Quill
 			}
 		}
 		
+		// Make the prickle
+		
+		$prickle_file = $this->hopper_path . "/hedgehog.prickle";
+		$fp = fopen($this->triples_file, "r");
+		$fpw = fopen($prickle_file, "w");
+		while (($triple_string = fgets($fp, 4096)) !== false)
+		{
+			if(
+			(preg_match("|^<(.+)> <(.+)> \"(.+)\" .$|", str_replace("\n", "", $triple_string)) == 0)
+			&
+			(preg_match("|^(.+) <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> (.+)$|", str_replace("\n", "", $triple_string)) == 0)
+			)
+			{
+				continue;
+			}
+			fwrite($fpw, $triple_string);
+		}
+		fclose($fp);
+		fclose($fpw);
+		
 		// Copy contents of the hopper to the dumps path
 		$this->ensureDirExists($dumppath);
 		$this->deltree($dumppath);
