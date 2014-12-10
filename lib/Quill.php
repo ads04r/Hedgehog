@@ -445,6 +445,10 @@ class Quill
 			$toolpath = $tools_path . "/" . $tool;
 			if(!(file_exists($toolpath)))
 			{
+				$toolpath = dirname(dirname(__FILE__)) . "/tools/" . $tool;
+			}
+			if(!(file_exists($toolpath)))
+			{
 				foreach($path as $dir)
 				{
 					$toolpath = $dir . "/" . $tool;
