@@ -50,17 +50,20 @@ class SesameStore
 	
 	public function replace($graph, $triples_unproc)
 	{
-		function unspace_uris($triple)
+		if(!(function_exists("unspace_uris")))
 		{
-			$trp = $triple;
-			$m = array();
-			if(preg_match("|<([^<>]*)://([^<>]*) ([^<>]*)>|", $trp, $m) > 0)
+			function unspace_uris($triple)
 			{
-				$trp = str_replace($m[0], str_replace(" ", "%20", $m[0]), $trp);
+				$trp = $triple;
+				$m = array();
+				if(preg_match("|<([^<>]*)://([^<>]*) ([^<>]*)>|", $trp, $m) > 0)
+				{
+					$trp = str_replace($m[0], str_replace(" ", "%20", $m[0]), $trp);
+				}
+				return($trp);
 			}
-			return($trp);
 		}
-		
+
 		$triples = array_map('unspace_uris', $triples_unproc);
 
 		//var_dump($triples); exit();
