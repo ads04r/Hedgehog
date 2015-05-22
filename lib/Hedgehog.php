@@ -282,7 +282,6 @@ class Hedgehog
 			else
 			{
 				file_put_contents('php://stderr', rtrim($line)."\n");
-	print "B\n";
 			}
 		}
 	}
@@ -298,7 +297,6 @@ class Hedgehog
 			}
 			else
 			{
-	print "A\n";
 				file_put_contents('php://stdout', rtrim($line)."\n");
 			}
 		}
