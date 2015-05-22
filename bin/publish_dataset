@@ -53,6 +53,16 @@ function createSwitches()
 	}
 	
 	// Set variable $quiet if the user requests it.
+	if((array_key_exists("--log", $switches)) | (array_key_exists("-log", $switches)) | (array_key_exists("-l", $switches)))
+	{
+		$switches['log'] = true;
+	}
+	else
+	{
+		$switches['log'] = false;
+	}
+	
+	// Set variable $quiet if the user requests it.
 	if((array_key_exists("--quiet", $switches)) | (array_key_exists("-quiet", $switches)) | (array_key_exists("-q", $switches)))
 	{
 		$switches['quiet'] = true;
@@ -99,16 +109,11 @@ function display_help($extended=false)
 		print("  --help   Show this help screen\n");
 		print("  --quiet  No output (good for cron)\n");
 		print("  --force  Publish even if nothing has changed\n");
+		print("  --log    Write output to logfile rather than stdout/err\n");
 	} else {
 		print("Use --help switch for more options.\n");
 	}
 	print("\n");
-}
-
-function display_error($text)
-{
-	// Handy function, prints to STDERR rather than STDOUT
-	file_put_contents('php://stderr', $text . "\n");
 }
 
 // ================== Main script start here =================================
@@ -128,15 +133,18 @@ if(($switches['help']) | (count($datasets) == 0))
 	exit();
 }
 
-$hedgehog = new Hedgehog($switches['quiet'], $switches['force']);
+$hedgehog = new Hedgehog($switches['quiet'], $switches['force'], $switches['log']);
 
 foreach($datasets as $dataset)
 {
+	global $current_hedgehog_dataset;
+	$current_hedgehog_dataset = $dataset;
+	
 	$error = $hedgehog->publishDataset($dataset);
 	if(strlen($error) > 0)
 	{
-		display_error($error);
-		display_error("Dataset '" . $dataset . "' NOT published.");
+		$hedgehog->log_error($error);
+		$hedgehog->log_error("Dataset '" . $dataset . "' NOT published.");
 	}
 }
 

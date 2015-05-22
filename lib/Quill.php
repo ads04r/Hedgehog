@@ -494,13 +494,13 @@ class Quill
 					$stdout = trim($file_output['stdout']);
 					if(strlen($stdout > 0))
 					{
-						print("    " . str_replace("\n", "\n    ", $stdout) . "\n");
+						$this->hedgehog->log_message("    " . str_replace("\n", "\n    ", $stdout) . "\n");
 					}
 				}
 				$stderr = trim($file_output['stderr']);
 				if((!($quiet)) & (strlen($stderr) > 0))
 				{
-					display_error("    " . str_replace("\n", "\n    ", $stderr));
+					$this->hedgehog->log_error("    " . str_replace("\n", "\n    ", $stderr));
 				}
 			}
 		}
@@ -576,13 +576,13 @@ class Quill
 					$stdout = trim($file_output['stdout']);
 					if(strlen($stdout) > 0)
 					{
-						print("    " . str_replace("\n", "\n    ", $stdout) . "\n");
+						$this->hedgehog->log_message("    " . str_replace("\n", "\n    ", $stdout) . "\n");
 					}
 				}
 				$stderr = trim($file_output['stderr']);
 				if((!($quiet)) & (strlen($file_output['stderr']) > 0))
 				{
-					display_error("    " . str_replace("\n", "\n    ", $stderr));
+					$this->hedgehog->log_error("    " . str_replace("\n", "\n    ", $stderr));
 				}
 				if ($fh = opendir($this->hopper_path))
 				{
@@ -689,7 +689,7 @@ class Quill
 
 		if($triplecount <= $warn_triples)
 		{
-			display_error("WARNING: Only " . $triplecount . " triples generated!");
+			$this->hedgehog->log_error("WARNING: Only " . $triplecount . " triples generated!");
 		}
 		
 		// Delete '.private' files
@@ -723,7 +723,7 @@ class Quill
 		
 		// Add provenance
 		$ttl = $this->provenance->generateProvenance($this->hopper_path, $remotepath);
-		//print(implode("\n", $ttl) . "\n");
+		//$this->hedgehog->log_message(implode("\n", $ttl) . "\n");
 		$fp = fopen($this->triples_file, "a");
 		$triplecount = $triplecount + count($ttl);
 		foreach($ttl as $triple)
@@ -1085,8 +1085,9 @@ class Quill
 		return(file($this->triples_file));
 	}
 
-	function __construct($cfg_file, $tmp_dir="/tmp")
+	function __construct($hedgehog,$cfg_file, $tmp_dir="/tmp")
 	{
+		$this->hedgehog = $hedgehog; 
 		$this->provenance = new Provenance();
 		$this->extra_triples = array();
 		$this->dumpfiles = array();

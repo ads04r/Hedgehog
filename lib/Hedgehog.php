@@ -5,6 +5,8 @@ class Hedgehog
 	private $config;
 	private $quiet;
 	private $force;
+	private $log;
+	private $logfh;
 
 	private function getSetting($quill, $setting)
 	{
@@ -43,11 +45,11 @@ class Hedgehog
 		{
 			if(is_dir($tmp))
 			{
-				$quill = new Quill($cfg, $tmp);
+				$quill = new Quill($this,$cfg, $tmp);
 			}
 			else
 			{
-				$quill = new Quill($cfg);
+				$quill = new Quill($this,$cfg);
 			}
 		}
 		catch (Exception $e)
@@ -57,11 +59,11 @@ class Hedgehog
 		
 		if(!($this->quiet))
 		{
-			print("Processing quill '" . $dataset . "'\n");
+			$this->log_message("Processing quill '" . $dataset . "'\n");
 		}
 		if(!($this->quiet))
 		{
-			print("  Preparing data for publish\n");
+			$this->log_message("  Preparing data for publish\n");
 		}
 		$errors = $quill->prepare($this->quiet, $this->getSetting($quill, "tools_dir"));
 		if($errors > 0)
@@ -80,7 +82,7 @@ class Hedgehog
 			}
 			if(!($this->quiet))
 			{
-				print("  No modifications, publish aborted\n");
+				$this->log_message("  No modifications, publish aborted\n");
 			}
 			return "";
 		}
@@ -178,7 +180,7 @@ class Hedgehog
 			
 			if(!($this->quiet))
 			{
-				print("  Publishing data to " . $dump . "\n");
+				$this->log_message("  Publishing data to " . $dump . "\n");
 			}
 			$dataset_uri = $xml_base . "/dataset/" . $dataset;
 			$errors = $quill->publish($dump, $dump_base . "/" . $dataset . "/" . $dumpdate, $dataset_uri, $this->quiet);
@@ -213,7 +215,7 @@ class Hedgehog
 			{
 				if(!($this->quiet))
 				{
-					print("  Importing into Sesame store: " . $graph . "\n");
+					$this->log_message("  Importing into Sesame store: " . $graph . "\n");
 				}
 				$fs = new SesameStore($triplestore_url);
 				$err = $fs->replace($graph, $quill->triples());
@@ -232,7 +234,7 @@ class Hedgehog
 			{
 				if(!($this->quiet))
 				{
-					print("  Importing into 4store: " . $graph . "\n");
+					$this->log_message("  Importing into 4store: " . $graph . "\n");
 				}
 				$fs = new FourStore($triplestore_url);
 				$err = $fs->replace($graph, $quill->triples());
@@ -253,7 +255,7 @@ class Hedgehog
 			
 			if(!($this->quiet))
 			{
-				print("  Clearing old dumps\n");
+				$this->log_message("  Clearing old dumps\n");
 			}
 			$quill->garbageCollect(rtrim($dump_root, "/") . "/" . $dataset);
 		}
@@ -262,17 +264,62 @@ class Hedgehog
 		
 		if(!($this->quiet))
 		{
-			print("  Publish successful.\n");
+			$this->log_message("  Publish successful.\n");
 		}
 		
 		return "";
 	}
+
+	public function log_error( $text )
+	{
+		global $current_hedgehog_dataset;
+		foreach( preg_split( "/\n/", $text ) as $line )
+		{
+			if( $this->logfh )
+			{
+				fwrite( $this->logfh, date("c")." [$current_hedgehog_dataset] [ERR] ".rtrim($line)."\n" );
+			}
+			else
+			{
+				file_put_contents('php://stderr', rtrim($line)."\n");
+	print "B\n";
+			}
+		}
+	}
+
+	public function log_message( $text )
+	{
+		global $current_hedgehog_dataset;
+		foreach( preg_split( "/\n/", $text ) as $line )
+		{
+			if( $this->logfh )
+			{
+				fwrite( $this->logfh, date("c")." [$current_hedgehog_dataset] [   ] ".rtrim($line)."\n" );
+			}
+			else
+			{
+	print "A\n";
+				file_put_contents('php://stdout', rtrim($line)."\n");
+			}
+		}
+	}
 	
-	function __construct($quiet=false, $force=false)
+	function __construct($quiet=false, $force=false, $log=false)
 	{
 		$this->quiet = $quiet;
 		$this->force = $force;
+		$this->log = $log;
 		$this->config = new HedgehogConfig();
+		
+		if( $this->log )
+		{
+			$logfile = $this->config->log_dir."/hedge.log";
+			$this->logfh = fopen( $logfile, "a" );
+			if( !$this->logfh )
+			{
+				$this->log_error( "Failed to open log $logfile" );
+			}
+		}
 		
 		$arc2path = $this->config->arc2_path;
 		$graphitepath = $this->config->graphite_path;
