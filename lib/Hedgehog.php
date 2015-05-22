@@ -273,7 +273,7 @@ class Hedgehog
 	public function log_error( $text )
 	{
 		global $current_hedgehog_dataset;
-		foreach( preg_split( "/\n/", $text ) as $line )
+		foreach( preg_split( "/\n/", rtrim($text) ) as $line )
 		{
 			if( $this->logfh )
 			{
@@ -289,7 +289,7 @@ class Hedgehog
 	public function log_message( $text )
 	{
 		global $current_hedgehog_dataset;
-		foreach( preg_split( "/\n/", $text ) as $line )
+		foreach( preg_split( "/\n/", rtrim($text) ) as $line )
 		{
 			if( $this->logfh )
 			{
