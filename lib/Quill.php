@@ -523,6 +523,97 @@ class Quill
 		return($errors);
 	}
 	
+	public function republish($dumppath, $remotepath, $dataset_uri, $quiet = false)
+	{
+		// Start by duplicating the last dump directory into the hopper
+		$dumps_path = dirname($dumppath);
+		$lastdumppath = "";
+		$dh = opendir($dumps_path);
+		$lastdt = 0;
+		$thisdt = strtotime(date("Y-m-d") . " 00:00:00 GMT");
+		while(false != ($ds = readdir($dh)))
+		{
+			$dt = strtotime($ds . " 00:00:00 GMT");
+			if($dt == $thisdt) { continue; }
+			if($dt > $lastdt) { $lastdt = $dt; }
+		}
+		closedir($dh);
+		$lastdumppath = $dumps_path . "/" . gmdate("Y-m-d", $lastdt);
+		$this->dupdir($lastdumppath, $this->hopper_path);
+
+		// Find a previous dump file
+		$import_file = "";
+		foreach($this->dumpfiles as $dumpfile)
+		{
+			if(file_exists($import_file)) { continue; }
+			$localfile = $dumpfile['filename'];
+			$format = $dumpfile['format'];
+			$import_file = $this->hopper_path . "/" . $localfile;
+		}
+
+		// Check for presence of import file
+		chdir($this->hopper_path);
+		$import_file = $this->config['properties']['import_file'];
+		if(!(file_exists($import_file)))
+		{
+			$this->errors[] = "Import file '" . $import_file . "' not found.";
+			$errors = count($this->errors);
+			return($errors);
+		}
+
+		// Find the path to Rapper, if it exists
+		chdir($this->hopper_path);
+		$path = explode(":", $_SERVER['PATH']);
+		$rapper = "";
+		foreach($path as $dir)
+		{
+			$testpath = rtrim($dir, "/") . "/rapper";
+			if(file_exists($testpath))
+			{
+				$rapper = $testpath;
+				break;
+			}
+		}
+		if(strlen($rapper) == 0)
+		{
+			$this->errors[] = "Cannot find Rapper in the path.";
+			$errors = count($this->errors);
+			return($errors);
+		}
+		
+		// Generate triples
+		chdir($this->hopper_path);
+		$cmd_line = $rapper . " -g -o ntriples " . $import_file . " > " . $this->triples_file;
+		$triplecount = 0;
+		$ret_val = $this->externalScript($cmd_line);
+		$this->provenance->logConvert($import_file, $this->triples_file, array());
+		// Get the number of triples - bit hacky but does the job until I can think of something better.
+		// We could count the lines in the ntriples file, but that would take far too much time with massive datasets.
+		$m = array();
+		if(preg_match("/returned ([0-9]+) triples/", $ret_val['stderr'], $m) > 0)
+		{
+			$triplecount = (int) $m[1];
+		}
+		// Now use the same method to get the name of the parser used.
+		$m = array();
+		$ntriples_file_format = "";
+		if(preg_match("/parser name \'([a-zA-Z0-9]+)\'/", $ret_val['stderr'], $m) > 0)
+		{
+			$ntriples_file_format = strtolower($m[1]);
+			$this->provenance->fileType($import_file, $ntriples_file_format);
+		}
+		
+		// If rapper returns a nonzero value, quit
+		if($ret_val['code'] != 0)
+		{
+			$this->errors[] = "Error generating triples.\n    " . str_replace("\n", "\n    ", trim($ret_val['stderr']));
+			$errors = count($this->errors);
+			return($errors);
+		}
+
+		return(count($this->errors));
+	}
+
 	public function publish($dumppath, $remotepath, $dataset_uri, $quiet = false)
 	{
 		// Set up some variables to start.

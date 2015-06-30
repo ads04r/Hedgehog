@@ -20,7 +20,7 @@ class Hedgehog
 		return($this->config->$setting);
 	}
 
-	public function publishDataset($dataset)
+	public function publishDataset($dataset, $republish=false)
 	{
 		$quills_dir_list = explode(":", $this->config->quills_dir);
 		$tmp = $this->config->tmp_dir;
@@ -61,18 +61,28 @@ class Hedgehog
 		{
 			$this->log_message("Processing quill '" . $dataset . "'\n");
 		}
-		if(!($this->quiet))
+
+		$errors = 0;
+		if(!($republish))
 		{
-			$this->log_message("  Preparing data for publish\n");
-		}
-		$errors = $quill->prepare($this->quiet, $this->getSetting($quill, "tools_dir"));
-		if($errors > 0)
-		{
-			return(implode("\n", $quill->errors));
+			if(!($this->quiet))
+			{
+				$this->log_message("  Preparing data for publish\n");
+			}
+			$errors = $quill->prepare($this->quiet, $this->getSetting($quill, "tools_dir"));
+			if($errors > 0)
+			{
+				return(implode("\n", $quill->errors));
+			}
 		}
 		
 		$hash_file = rtrim($this->getSetting($quill, "hashes_dir"), "/") . "/" . $dataset . ".hash";
-		$changed = $quill->changedFiles($hash_file);
+		if($republish)
+		{
+			$changed = true;
+		} else {
+			$changed = $quill->changedFiles($hash_file);
+		}
 		if((!($changed)) & (!($this->force)))
 		{
 			$errors = $quill->runCompletedScripts();
@@ -139,10 +149,7 @@ class Hedgehog
 		
 		foreach($publish_events as $publish_event)
 		{
-			if(strcmp($publish_event['action'], "dump") != 0)
-			{
-				continue;
-			}
+			if(strcmp($publish_event['action'], "dump") != 0) { continue; }
 		
 			$dump_root = $publish_event['path'];
 			$dump_base = $publish_event['url'];
@@ -183,7 +190,12 @@ class Hedgehog
 				$this->log_message("  Publishing data to " . $dump . "\n");
 			}
 			$dataset_uri = $xml_base . "/dataset/" . $dataset;
-			$errors = $quill->publish($dump, $dump_base . "/" . $dataset . "/" . $dumpdate, $dataset_uri, $this->quiet);
+			if($republish)
+			{
+				$errors = $quill->republish($dump, $dump_base . "/" . $dataset . "/" . $dumpdate, $dataset_uri, $this->quiet);
+			} else {
+				$errors = $quill->publish($dump, $dump_base . "/" . $dataset . "/" . $dumpdate, $dataset_uri, $this->quiet);
+			}
 			if($errors > 0)
 			{
 				return(implode("\n", $quill->errors));
@@ -268,6 +280,11 @@ class Hedgehog
 		}
 		
 		return "";
+	}
+
+	public function republishDataset($dataset)
+	{
+		$this->publishDataset($dataset, true);
 	}
 
 	public function log_error( $text )

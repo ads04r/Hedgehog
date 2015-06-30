@@ -52,7 +52,7 @@ function createSwitches()
 		}
 	}
 	
-	// Set variable $quiet if the user requests it.
+	// Set variable $log if the user requests it.
 	if((array_key_exists("--log", $switches)) | (array_key_exists("-log", $switches)) | (array_key_exists("-l", $switches)))
 	{
 		$switches['log'] = true;
@@ -82,6 +82,16 @@ function createSwitches()
 		$switches['force'] = false;
 	}
 	
+	// Set variable $republish if the user requests it.
+	if(array_key_exists("--republish", $switches))
+	{
+		$switches['republish'] = true;
+	}
+	else
+	{
+		$switches['republish'] = false;
+	}
+	
 	// Display help if the user requests it.
 	if((array_key_exists("--help", $switches)) | (array_key_exists("-help", $switches)) | (array_key_exists("-h", $switches)) | (array_key_exists("-?", $switches)))
 	{
@@ -106,10 +116,11 @@ function display_help($extended=false)
 	{
 		// Show extended help
 		print("Options\n");
-		print("  --help   Show this help screen\n");
-		print("  --quiet  No output (good for cron)\n");
-		print("  --force  Publish even if nothing has changed\n");
-		print("  --log    Write output to logfile rather than stdout/err\n");
+		print("  --help       Show this help screen\n");
+		print("  --quiet      No output (good for cron)\n");
+		print("  --force      Publish even if nothing has changed\n");
+		print("  --republish  Import last successful data publish into triplestore\n");
+		print("  --log        Write output to logfile rather than stdout/err\n");
 	} else {
 		print("Use --help switch for more options.\n");
 	}
@@ -140,7 +151,7 @@ foreach($datasets as $dataset)
 	global $current_hedgehog_dataset;
 	$current_hedgehog_dataset = $dataset;
 	
-	$error = $hedgehog->publishDataset($dataset);
+	$error = $hedgehog->publishDataset($dataset, $switches['republish']);
 	if(strlen($error) > 0)
 	{
 		$hedgehog->log_error($error);
@@ -148,4 +159,3 @@ foreach($datasets as $dataset)
 	}
 }
 
-?>
