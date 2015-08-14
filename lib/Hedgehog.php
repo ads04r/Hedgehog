@@ -294,7 +294,7 @@ class Hedgehog
 		{
 			if( $this->logfh )
 			{
-				fwrite( $this->logfh, date("c")." [$current_hedgehog_dataset] [ERR] ".rtrim($line)."\n" );
+				fwrite( $this->logfh, date("c")." [$current_hedgehog_dataset][".getmypid()."] *ERROR* ".rtrim($line)."\n" );
 			}
 			else
 			{
@@ -310,7 +310,7 @@ class Hedgehog
 		{
 			if( $this->logfh )
 			{
-				fwrite( $this->logfh, date("c")." [$current_hedgehog_dataset] [   ] ".rtrim($line)."\n" );
+				fwrite( $this->logfh, date("c")." [$current_hedgehog_dataset][".getmypid()."] ".rtrim($line)."\n" );
 			}
 			else
 			{
