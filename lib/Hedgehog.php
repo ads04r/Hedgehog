@@ -69,7 +69,7 @@ class Hedgehog
 			{
 				$this->log_message("  Preparing data for publish\n");
 			}
-			$errors = $quill->prepare($this->quiet, $this->getSetting($quill, "tools_dir"));
+			$errors = $quill->prepare($this->quiet, $this->getSetting($quill, "tools_dir"), $this->getSetting($quill, "incoming_dir"));
 			if($errors > 0)
 			{
 				return(implode("\n", $quill->errors));

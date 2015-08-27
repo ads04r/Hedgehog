@@ -403,7 +403,7 @@ class Quill
 		return($errors);
 	}
 	
-	public function prepare($quiet = false, $tools_path = "/usr/bin")
+	public function prepare($quiet = false, $tools_path = "/usr/bin", $incoming_path = "/var/incoming")
 	{
 		// Copy quill directory to the hopper
 		$this->dupdir($this->quill_path, $this->hopper_path);
@@ -428,6 +428,34 @@ class Quill
 					$this->errors[] = "Error " . $httpCode . ", could not download " . $download['download'];
 				}
 				$this->provenance->logDownloadEnd($download['download'], $download['localfile']);
+			}
+		}
+		$errors = count($this->errors);
+		if($errors > 0)
+		{
+			return($errors);
+		}
+		
+		// Copy from incoming
+		chdir($this->hopper_path);
+		$incoming = array();
+		if(array_key_exists("incoming", $this->config))
+		{
+			$incoming = $this->config['incoming'];
+		}
+		foreach($incoming as $file)
+		{
+			$from_path = rtrim($incoming_path, "/") . "/" . $file;
+			if(!(file_exists($from_path)))
+			{
+				$this->errors[] = "File not found: " . $from_path . ".";
+			}
+			$file_perms = fileperms($from_path);
+			copy($from_path, $this->hopper_path . "/" . $file);
+			chmod($this->hopper_path . "/" . $file, $file_perms);
+			if(!(file_exists($this->hopper_path . "/" . $file)))
+			{
+				$this->errors[] = "Copying failed: " . $from_path . ".";
 			}
 		}
 		$errors = count($this->errors);
