@@ -262,9 +262,10 @@ class Quill
 	{
 
 		if(function_exists("curl_init"))
+		//if(1 == 2)
 		{
 			$ch = curl_init();
-			$timeout = 5;
+			$timeout = 30;
 			curl_setopt($ch, CURLOPT_URL, $url);
 			curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
 			curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
@@ -851,7 +852,19 @@ class Quill
 		}
 		fclose($fp);
 
-		// Add statistics (eg triple count)
+		// Add example resources (VOID)
+		$fp = fopen($this->triples_file, "a");
+		$examples = array();
+		$examples = @$this->config['properties']['examples'];
+		if(!(is_array($examples))) { $examples = array(); }
+		foreach($examples as $example_uri)
+		{
+			fwrite($fp, "<" . $dataset_uri . "> <http://rdfs.org/ns/void#exampleResource> <" . $example_uri . "> .\n");
+			$triplecount++;
+		}
+		fclose($fp);
+
+		// Add triple count
 		$ttl = array();
 		$ttl[] = "<" . $dataset_uri . "> <http://rdfs.org/ns/void#triples> \"" . ($triplecount + 1) . "\"^^<http://www.w3.org/2001/XMLSchema#NonNegativeInteger> ."; // IMPORTANT! ALWAYS do this last, or the triple count will be wrong!
 		$fp = fopen($this->triples_file, "a");
