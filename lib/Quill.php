@@ -749,6 +749,14 @@ class Quill
 			return($errors);
 		}
 
+		// Run RateMyDataset on the import file
+		chdir($this->hopper_path);
+		$rmd = new RateMyDataset();
+		$report_file = dirname($import_file) . "/report.json";
+		$fp = fopen($report_file, "w");
+		fwrite($fp, json_encode($rmd->rate($import_file)));
+		fclose($fp);
+
 		// Find the path to Rapper, if it exists
 		chdir($this->hopper_path);
 		$path = explode(":", $_SERVER['PATH']);
