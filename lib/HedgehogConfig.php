@@ -26,7 +26,7 @@ class HedgehogConfig extends ArrayObject
 				$parse[($c - 2)] = "settings";
 				$settings_path = rtrim(implode("/", $parse), "/");
 			}
-		}		
+		}
 		$r = array();
 		if(is_dir($settings_path))
 		{
@@ -39,6 +39,8 @@ class HedgehogConfig extends ArrayObject
 					{
 						continue;
 					}
+
+					if(preg_match("/\\.template$/", $full_path) > 0) { continue; }
 
 					$json = json_decode(file_get_contents($full_path), true);
 					if(is_array($json))
