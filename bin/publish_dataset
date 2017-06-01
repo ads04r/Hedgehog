@@ -156,6 +156,7 @@ foreach($datasets as $dataset)
 	{
 		$hedgehog->log_error($error);
 		$hedgehog->log_error("Dataset '" . $dataset . "' NOT published.");
+		exit(1);
 	}
 }
 
