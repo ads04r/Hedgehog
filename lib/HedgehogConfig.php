@@ -100,4 +100,9 @@ class HedgehogConfig extends ArrayObject
 	{
 		return true;
 	}
+
+	public function getSettings()
+	{
+		return(array_keys($this->global_settings));
+	}
 }

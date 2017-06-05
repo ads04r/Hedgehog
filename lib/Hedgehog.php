@@ -2,11 +2,25 @@
 
 class Hedgehog
 {
-	private $config;
+	public $config;
 	private $quiet;
 	private $force;
 	private $log;
 	private $logfh;
+
+	public function getSettings($quill="")
+	{
+		if(strlen($quill) == 0)
+		{
+			return($this->config->getSettings());
+		}
+
+		$ret = array_merge(
+			$this->config->getSettings(),
+			$quill
+		);
+		return($ret);
+	}
 
 	private function getSetting($quill, $setting)
 	{

@@ -298,15 +298,23 @@ class Quill
 
 	// A function to handle external processes better than shell_exec.
 
-	private function externalScript($command_line)
+	private function externalScript($command_line, $env=NULL)
 	{
 		$descriptorspec = array(
 			0 => array("pipe", "r"),  // stdin
 			1 => array("pipe", "w"),  // stdout
 			2 => array("pipe", "w"),  // stderr
 		);
+		$pipes = array();
 
-		$process = proc_open($command_line, $descriptorspec, $pipes);
+		if(is_array($env))
+		{
+			$process = proc_open($command_line, $descriptorspec, $pipes, NULL, $env);
+		}
+		else
+		{
+			$process = proc_open($command_line, $descriptorspec, $pipes);
+		}
 		$stdout = stream_get_contents($pipes[1]);
 		fclose($pipes[1]);
 		$stderr = stream_get_contents($pipes[2]);
@@ -504,6 +512,26 @@ class Quill
 			}
 		}
 		
+		// Prepare environment
+		$env = array();
+		foreach($_SERVER as $k=>$v)
+		{
+			if(is_string($v)) { $env[$k] = $v; }
+		}
+		foreach($this->hedgehog->getSettings() as $k)
+		{
+			$v = $this->hedgehog->config->$k;
+			if(is_string($v)) { $env[$k] = $v; }
+		}
+		$thiscfg = $this->config;
+		if(array_key_exists("settings_override", $thiscfg))
+		{
+			foreach($thiscfg['settings_override'] as $k=>$v)
+			{
+				if(is_string($v)) { $env[$k] = $v; }
+			}
+		}
+		
 		// Run prepare scripts
 		chdir($this->hopper_path);
 		$commands = $this->config['commands'];
@@ -511,7 +539,7 @@ class Quill
 		{
 			foreach($commands['prepare'] as $command)
 			{
-				$file_output = $this->externalScript($command);
+				$file_output = $this->externalScript($command, $env);
 				if($file_output['code'] != 0)
 				{
 					$this->errors[] = "Attempt to run command failed: " . $command . "\n" . $file_output['stderr'];
@@ -677,6 +705,26 @@ class Quill
 			closedir($fh);
 		}
 		
+		// Prepare environment
+		$env = array();
+		foreach($_SERVER as $k=>$v)
+		{
+			if(is_string($v)) { $env[$k] = $v; }
+		}
+		foreach($this->hedgehog->getSettings() as $k)
+		{
+			$v = $this->hedgehog->config->$k;
+			if(is_string($v)) { $env[$k] = $v; }
+		}
+		$thiscfg = $this->config;
+		if(array_key_exists("settings_override", $thiscfg))
+		{
+			foreach($thiscfg['settings_override'] as $k=>$v)
+			{
+				if(is_string($v)) { $env[$k] = $v; }
+			}
+		}
+		
 		// First run the 'publish' scripts, if any.
 		chdir($this->hopper_path);
 		$commands = $this->config['commands'];
@@ -684,7 +732,7 @@ class Quill
 		{
 			foreach($commands['import'] as $command)
 			{
-				$file_output = $this->externalScript($command);
+				$file_output = $this->externalScript($command, $env);
 				if($file_output['code'] != 0)
 				{
 					$this->errors[] = "Attempt to run command failed: " . $command . "\n" . $file_output['stderr'];
@@ -979,7 +1027,7 @@ class Quill
 		{
 			foreach($commands['completed'] as $command)
 			{
-				$file_output = $this->externalScript($command);
+				$file_output = $this->externalScript($command, $env);
 				if($file_output['code'] != 0)
 				{
 					$this->errors[] = "Attempt to run command failed: " . $command . "\n" . $file_output['stderr'];
