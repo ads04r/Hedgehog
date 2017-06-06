@@ -998,7 +998,7 @@ class Quill
 		$this->dupdir($this->hopper_path, $dumppath);
 		
 		// Perform completion scripts, if requested.
-		$this->runCompletedScripts();
+		$this->runCompletedScripts($env);
 		
 		return(count($this->errors));
 	}
@@ -1023,7 +1023,7 @@ class Quill
 		fclose($fp);
 	}
 	
-	public function runCompletedScripts()
+	public function runCompletedScripts($env=NULL)
 	{
 		chdir($this->hopper_path);
 		$commands = $this->config['commands'];
