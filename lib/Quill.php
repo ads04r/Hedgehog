@@ -520,15 +520,17 @@ class Quill
 		}
 		foreach($this->hedgehog->getSettings() as $k)
 		{
+			$kk = "HEDGEHOG_CONFIG_" . strtoupper($k);
 			$v = $this->hedgehog->config->$k;
-			if(is_string($v)) { $env[$k] = $v; }
+			if(is_string($v)) { $env[$kk] = $v; }
 		}
 		$thiscfg = $this->config;
 		if(array_key_exists("settings_override", $thiscfg))
 		{
 			foreach($thiscfg['settings_override'] as $k=>$v)
 			{
-				if(is_string($v)) { $env[$k] = $v; }
+				$kk = "HEDGEHOG_CONFIG_" . strtoupper($k);
+				if(is_string($v)) { $env[$kk] = $v; }
 			}
 		}
 		
@@ -713,15 +715,17 @@ class Quill
 		}
 		foreach($this->hedgehog->getSettings() as $k)
 		{
+			$kk = "HEDGEHOG_CONFIG_" . strtoupper($k);
 			$v = $this->hedgehog->config->$k;
-			if(is_string($v)) { $env[$k] = $v; }
+			if(is_string($v)) { $env[$kk] = $v; }
 		}
 		$thiscfg = $this->config;
 		if(array_key_exists("settings_override", $thiscfg))
 		{
 			foreach($thiscfg['settings_override'] as $k=>$v)
 			{
-				if(is_string($v)) { $env[$k] = $v; }
+				$kk = "HEDGEHOG_CONFIG_" . strtoupper($k);
+				if(is_string($v)) { $env[$kk] = $v; }
 			}
 		}
 		
