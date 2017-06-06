@@ -1,0 +1,28 @@
+{
+   "system_name" : "Hedgehog",
+   "graphite_path" : "/home/ash/tools/Graphite/Graphite.php",
+   "arc2_path" : "/home/ash/tools/arc2/ARC2.php",
+   "tools_dir" : "/home/ash/tools/Grinder/bin",
+   "source_base_dir" : "/home/ash/Documents/data",
+   "tmp_dir" : "/home/ash/tools/Hedgehog/tmp",
+   "xml_base" : "http://id.southampton.ac.uk",
+   "cfg_base_dir" : "/home/ash/tools/Hedgehog/quills",
+   "publish" : [
+      {
+         "url" : "http://data.southampton.ac.uk/dumps",
+         "path" : "/home/hedgehog/dumps",
+         "action" : "dump"
+      },
+      {
+         "url" : "http://127.0.0.1:8080/openrdf-sesame/repositories/data-soton-dev/statements",
+         "action" : "sesame"
+      }
+   ],
+   "target_base_dir" : "/home/ash/Documents/public_html/data/dumps",
+   "hashes_dir" : "/home/ash/tools/Hedgehog/hashes",
+   "rapper_path" : "/usr/local/bin/rapper",
+
+   "quills_dir" : "/home/ash/tools/Hedgehog/quills",
+   "incoming_dir" : "/home/ash/tools/Hedgehog/var/incoming",
+   "log_dir" : "/var/wwwsites/var/log"
+}

@@ -1,3 +1,4 @@
 settings/main.json
 settings/paths.conf
 settings/graphite.conf
+settings/config.conf
