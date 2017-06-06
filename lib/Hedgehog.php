@@ -36,7 +36,15 @@ class Hedgehog
 
 	public function publishDataset($dataset, $republish=false)
 	{
-		$quills_dir_list = explode(":", $this->config->quills_dir);
+		$quills_dir_blob = $this->config->quills_dir;
+		if(is_array($quills_dir_blob))
+		{
+			$quills_dir_list = $quills_dir_blob;
+		}
+		else
+		{
+			$quills_dir_list = explode(":", "" . $quills_dir_blob);
+		}
 		$tmp = $this->config->tmp_dir;
 		$dumpdate = date("Y-m-d");
 
