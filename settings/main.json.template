@@ -1,8 +1,0 @@
-{
-        "system_name": "Hedgehog",
-        "xml_base": "http://id.southampton.ac.uk",
-        "publish":[
-                {"action":"dump", "url":"http://data.southampton.ac.uk/dumps", "path":"/home/hedgehog/dumps"},
-                {"action":"sesame", "url":"http://127.0.0.1:8080/openrdf-sesame/repositories/data-soton-dev/statements"}
-        ]
-}

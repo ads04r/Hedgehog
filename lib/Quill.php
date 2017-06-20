@@ -296,6 +296,31 @@ class Quill
 		return($httpCode);
 	}
 
+	// A function to fill out the JSON with real values
+
+	private function fillOutJson($json)
+	{
+		if(is_string($json))
+		{
+			return( preg_replace_callback( "/\{\{([^}]*)\}\}/", function($matches)
+			{
+				$value = $matches[1];
+				$ret = $this->hedgehog->config->$value;
+				if(strlen($ret) == 0) { return($value); }
+				return($ret);
+			}, $json ) );
+		}
+
+		if(!(is_array($json))) { return($json); }
+
+		$ret = array();
+		foreach($json as $k=>$item)
+		{
+			$ret[$k] = $this->fillOutJson($item);
+		}
+		return($ret);
+	}
+
 	// A function to handle external processes better than shell_exec.
 
 	private function externalScript($command_line, $env=NULL)
@@ -382,6 +407,9 @@ class Quill
 		{
 			return $errors; // May as well quit here, we can't continue if we have errors.
 		}
+		
+		// Go through the JSON, correcting the {{ }} items if we can
+		$json_obj = $this->fillOutJson($json_obj);
 		
 		// Check that all the necessary files exist
 		$parse = explode("/", $dataset_cfg);

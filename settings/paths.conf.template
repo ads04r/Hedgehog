@@ -1,7 +1,0 @@
-rapper_path /usr/local/bin/rapper
-hashes_dir /var/wwwsites/var/data-hashes
-source_base_dir /var/wwwsites/data
-target_base_dir /var/wwwsites/southampton.ac.uk/data/htdocs/dumps
-cfg_base_dir /var/wwwsites/cfg/quills
-tools_dir /var/wwwsites/tools/Grinder/bin
-tmp_dir /var/wwwsites/var/hopper
