@@ -833,7 +833,7 @@ class Quill
 		// Run RateMyDataset on the import file, if required
 		if(!(array_key_exists("generate_report", $this->config['properties'])))
 		{
-			$this->config['properties']['generate_report'] = true;
+			$this->config['properties']['generate_report'] = false;
 		}
 		if($this->config['properties']['generate_report'])
 		{
