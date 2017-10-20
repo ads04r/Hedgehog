@@ -1036,15 +1036,6 @@ class Quill
 		// Perform completion scripts, if requested.
 		$this->runCompletedScripts($env);
 		
-		// Update timestamps directory if it exists
-		$timestamp_file = $this->timestamp_file;
-		if(strlen($timestamp_file) > 0)
-		{
-			$fp = fopen($timestamp_file, "w");
-			fwrite($fp, "Completed at " . date("g:ia") . " on " . date("l jS F, Y"));
-			fclose($fp);
-		}
-
 		return(count($this->errors));
 	}
 
@@ -1081,11 +1072,25 @@ class Quill
 				{
 					$this->errors[] = "Attempt to run command failed: " . $command . "\n" . $file_output['stderr'];
 					$errors = count($this->errors);
+					$this->makeTimestampFile();
 					return($errors);
 				}
 			}
 		}
+		$this->makeTimestampFile();
 		return count($this->errors);
+	}
+	
+	private function makeTimestampFile()
+	{
+		// Update timestamps directory if it exists
+		$timestamp_file = $this->timestamp_file;
+		if(strlen($timestamp_file) > 0)
+		{
+			$fp = fopen($timestamp_file, "w");
+			fwrite($fp, "Completed at " . date("g:ia") . " on " . date("l jS F, Y"));
+			fclose($fp);
+		}
 	}
 	
 	private function dumpFileMetadata($uri)
