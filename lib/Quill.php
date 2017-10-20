@@ -63,6 +63,7 @@ class Quill
 
 	private $hopper_path;
 	private $triples_file;
+	private $timestamp_file;
 	private $quill_path;
 	private $extra_triples;
 	private $dumpfiles;
@@ -1031,10 +1032,19 @@ class Quill
 			return($errors);
 		}
 		$this->dupdir($this->hopper_path, $dumppath);
-		
+
 		// Perform completion scripts, if requested.
 		$this->runCompletedScripts($env);
 		
+		// Update timestamps directory if it exists
+		$timestamp_file = $this->timestamp_file;
+		if(strlen($timestamp_file) > 0)
+		{
+			$fp = fopen($timestamp_file, "w");
+			fwrite($fp, "Completed at " . date("g:ia") . " on " . date("l jS F, Y"));
+			fclose($fp);
+		}
+
 		return(count($this->errors));
 	}
 
@@ -1322,6 +1332,9 @@ class Quill
 		$this->errors = array();
 		$this->hash_checked = false;
 		$this->hash_check_result = false;
+		$this->timestamp_file = "";
+		$timestamps_dir = $this->hedgehog->config->timestamps_dir;
+
 		if(($this->loadSettingsFile($cfg_file)) > 0)
 		{
 			throw new Exception(implode(", ", $this->errors));
@@ -1338,6 +1351,10 @@ class Quill
 		$this->hopper_path = rtrim($tmp_dir, "/") . "/" . $dataset . ".new." . $uid;
 		$this->triples_file = rtrim($tmp_dir, "/") . "/" . $dataset . "-full.nt." . $uid;
 		//$this->triples_file = $this->hopper_path . "/" . $dataset . ".nt";
+		if(file_exists($timestamps_dir))
+		{
+			$this->timestamp_file = $timestamps_dir . "/" . $dataset;
+		}
 		if(!($this->ensureDirExists($this->hopper_path))) {
 			throw new Exception("Cannot create temporary directory for processing");
 		}
