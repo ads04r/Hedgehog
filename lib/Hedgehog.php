@@ -150,7 +150,7 @@ class Hedgehog
 			$item['url'] = $dump_base;
 			$item['path'] = $dump_root;
 			$publish_events[] = $item;
-			
+
 			if(strlen($global_import_url) > 0)
 			{
 				$item = array();
@@ -166,17 +166,28 @@ class Hedgehog
 				$publish_events[] = $item;
 			}
 		}
-		
+
 		// Dump files
-		
+
 		foreach($publish_events as $publish_event)
 		{
 			if(strcmp($publish_event['action'], "dump") != 0) { continue; }
-		
+
 			$dump_root = $publish_event['path'];
 			$dump_base = $publish_event['url'];
 			$dump_quill_root = rtrim($dump_root, "/") . "/" . $dataset;
 			$dump = $dump_quill_root . "/" . $dumpdate;
+			$smbdump = "";
+			$smbcred = "";
+			if((array_key_exists("smbcredentials", $publish_event)) && (array_key_exists("smbpath", $publish_event)))
+			{
+				if((file_exists($publish_event['smbcredentials'])) && (preg_match("|^//|", $publish_event['smbpath']) > 0))
+				{
+					$smbcred = $publish_event['smbcredentials'];
+					$smb_quill_root = rtrim($publish_event['smbpath'], "/") . "/" . $dataset;
+					$smbdump = $smb_quill_root . "/" . $dumpdate;
+				}
+			}
 			if(array_key_exists("base", $publish_event))
 			{
 				$xml_base = $publish_event['base'];
@@ -206,7 +217,7 @@ class Hedgehog
 					$quill->requestICSDump($dataset . ".ics", $dumpuri);
 				}
 			}
-			
+
 			if(!($this->quiet))
 			{
 				$this->log_message("  Publishing data to " . $dump . "\n");
@@ -218,21 +229,47 @@ class Hedgehog
 			} else {
 				$errors = $quill->publish($dump, $dump_base . "/" . $dataset . "/" . $dumpdate, $dataset_uri, $this->quiet);
 			}
+			if(($errors == 0) && (strlen($smbdump) > 0))
+			{
+				$this->log_message("  Publishing data to " . $smbdump . "\n");
+				$smbpath = explode("/", ltrim($smbdump, "/"));
+				$smb_host = $smbpath[0];
+				$smb_point = $smbpath[1];
+				$smb_path = implode(array_slice($smbpath, 2), "/");
+				$rempath = "";
+				foreach(explode("/", $smb_path) as $dirname)
+				{
+					$rempath = ltrim($rempath . "/" . $dirname, "/");
+					$cmd = "smbclient -A " . $smbcred . " //" . $smb_host . "/" . $smb_point . " -c \"mkdir \\\"" . $rempath . "\\\"\" 2> /dev/null";
+					shell_exec($cmd);
+				}
+				$dp = opendir($dump);
+				while($file = readdir($dp))
+				{
+					if(strcmp(substr($file, 0, 1), ".") == 0) { continue; }
+					// $this->log_message("    Uploading " . $dump . "/" . $file);
+					$cmd = "smbclient -A " . $smbcred . " //" . $smb_host . "/" . $smb_point . " -c \"put \\\"" . $dump . "/" . $file . "\\\" \\\"" . $smb_path . "/" . $file . "\\\"\" 2> /dev/null";
+					shell_exec($cmd);
+				}
+				closedir($dp);
+
+				// WHELK
+			}
 			if($errors > 0)
 			{
 				return(implode("\n", $quill->errors));
 			}
 		}
-		
+
 		// Publish to triplestore(s)
-		
+
 		foreach($publish_events as $publish_event)
 		{
 			if((strcmp($publish_event['action'], "sesame") != 0) & (strcmp($publish_event['action'], "4store") != 0))
 			{
 				continue;
 			}
-			
+
 			if(array_key_exists("base", $publish_event))
 			{
 				$xml_base = $publish_event['base'];
@@ -244,7 +281,7 @@ class Hedgehog
 			$graph = $xml_base . "/dataset/" . $dataset . "/latest";
 			$triplestore_url = $publish_event['url'];
 			$triplestore_type = $publish_event['action'];
-			
+
 			if(strcmp("sesame", $triplestore_type) == 0)
 			{
 				if(!($this->quiet))
@@ -275,18 +312,18 @@ class Hedgehog
 			}
 
 		}
-		
+
 		// Clear old dumps if necessary
-		
+
 		foreach($publish_events as $publish_event)
 		{
 			if(strcmp($publish_event['action'], "dump") != 0)
 			{
 				continue;
 			}
-		
+
 			$dump_root = $publish_event['path'];
-			
+
 			if(!($this->quiet))
 			{
 				$this->log_message("  Clearing old dumps\n");
@@ -295,12 +332,12 @@ class Hedgehog
 		}
 
 		// Finish up
-		
+
 		if(!($this->quiet))
 		{
 			$this->log_message("  Publish successful.\n");
 		}
-		
+
 		return "";
 	}
 
