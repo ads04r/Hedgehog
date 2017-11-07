@@ -203,8 +203,8 @@ class Quill
 				}
 				closedir($handle);
 			}
+			rmdir($dir);
 		}
-		rmdir($dir);
 	}
 
 	private function dupdir($src, $dst) // Duplicate a directory (non-recursive)
@@ -301,12 +301,20 @@ class Quill
 
 	private function fillOutJson($json)
 	{
+		//error_log("Yep, it was called - " . $json);
+
+		$glb_cfg = array();
+		foreach($this->hedgehog->getSettings() as $k)
+		{
+			$glb_cfg[$k] = $this->hedgehog->config->$k;
+		}
+
 		if(is_string($json))
 		{
-			return( preg_replace_callback( "/\{\{([^}]*)\}\}/", function($matches)
+			return( preg_replace_callback( "/\{\{([^}]*)\}\}/", function($matches) use ($glb_cfg)
 			{
 				$value = $matches[1];
-				$ret = $this->hedgehog->config->$value;
+				$ret = "" . $glb_cfg[$value];
 				if(strlen($ret) == 0) { return($value); }
 				return($ret);
 			}, $json ) );
