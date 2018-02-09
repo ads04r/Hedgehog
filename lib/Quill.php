@@ -982,9 +982,9 @@ class Quill
 
 		foreach($this->dumpfiles as $dumpfile)
 		{
-			if((!($quiet)) & (strlen($stderr) > 0))
+			if(!($quiet))
 			{
-				$this->hedgehog->log_error("    * " . $dumpfile['filename']);
+				$this->hedgehog->log_message("    * " . $dumpfile['filename']);
 			}
 
 			$localfile = $dumpfile['filename'];
