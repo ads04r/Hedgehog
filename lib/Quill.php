@@ -982,6 +982,11 @@ class Quill
 
 		foreach($this->dumpfiles as $dumpfile)
 		{
+			if((!($quiet)) & (strlen($stderr) > 0))
+			{
+				$this->hedgehog->log_error("    * " . $dumpfile['filename']);
+			}
+
 			$localfile = $dumpfile['filename'];
 			$format = $dumpfile['format'];
 			if(strcmp($format, "kml") == 0)
