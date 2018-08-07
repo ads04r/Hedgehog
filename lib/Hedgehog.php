@@ -158,9 +158,13 @@ class Hedgehog
 				{
 					$item['action'] = "sesame";
 				}
-				else
+				elseif(in_array("4store", $legacy_publish_actions))
 				{
 					$item['action'] = "4store";
+				}
+				else
+				{
+					$item['action'] = "mysql";
 				}
 				$item['url'] = $global_import_url;
 				$publish_events[] = $item;
@@ -265,7 +269,7 @@ class Hedgehog
 
 		foreach($publish_events as $publish_event)
 		{
-			if((strcmp($publish_event['action'], "sesame") != 0) & (strcmp($publish_event['action'], "4store") != 0))
+			if((strcmp($publish_event['action'], "sesame") != 0) && (strcmp($publish_event['action'], "4store") != 0) && (strcmp($publish_event['action'], "mysql") != 0))
 			{
 				continue;
 			}
@@ -279,7 +283,8 @@ class Hedgehog
 				$xml_base = $this->getSetting($quill, "xml_base");
 			}
 			$graph = $xml_base . "/dataset/" . $dataset . "/latest";
-			$triplestore_url = $publish_event['url'];
+			$triplestore_url = "";
+			if(array_key_exists("url", $publish_event)) { $triplestore_url = $publish_event['url']; }
 			$triplestore_type = $publish_event['action'];
 
 			if(strcmp("sesame", $triplestore_type) == 0)
@@ -308,6 +313,16 @@ class Hedgehog
 					$this->log_message("  Importing into 4store: " . $graph . "\n");
 				}
 				$fs = new FourStore($triplestore_url);
+				$err = $fs->replace($graph, $quill->triples());
+			}
+
+			if(strcmp("mysql", $triplestore_type) == 0)
+			{
+				if(!($this->quiet))
+				{
+					$this->log_message("  Importing into MySQL: " . $graph . "\n");
+				}
+				$fs = new MySQLStore($publish_event['host'], $publish_event['database'], $publish_event['username'], $publish_event['password']);
 				$err = $fs->replace($graph, $quill->triples());
 			}
 
