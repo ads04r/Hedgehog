@@ -20,3 +20,48 @@ License
 This work is released under the GNU General Public License version 2.0
 http://www.gnu.org/licenses/gpl-2.0.html
 
+
+General Documentation
+=====================
+
+How to run Hedgehog
+-------------------
+
+Hedgehog normally runs via crontab. Active quills can be run on a regular
+basis based on their needs, typically once a day but occasionally more
+or less often. 
+
+To run hedgehog with a specific quill: 
+
+    publish_dataset <quill_name_here> --log
+
+Quills
+------
+
+A Quill has a publish.json file which is the entry point and only mandatory
+element. It can also contain other files and scripts which are necessary to
+acquire and/or process the data into the correct format.
+
+* The first thing Hedgehog does is creates a new temporary directory and
+  copies all of the files from the Quill directory into that directory.
+* It then goes to the Download section of the quill publish.json and
+  performs all download steps specified.
+* It then goes to the tools section of the quill publish.json and copies
+  any required tools from the Hedgehog tools directory into the temporary
+  directory.
+* It then copies any files listed in the "incoming" section from the
+  incoming directory (specified within the config of Hedgehog itself) into
+  the temporary directory.
+* It then runs any commands in the commands > prepare section on the command
+  line.
+* (Optional) It then compares the dataset files with the hashes of the
+  previously processed dataset, and if it determines that the datasets are
+  identical to the last known versions then it stops here. Whether this happens
+  or not is usually specified in the publish.json file, but may be overridden
+  with the command line switch --force.
+* Otherwise it moves on to the import section of the commands section.
+* After the import section is complete, Hedgehog does some processing which
+  is specified globally by Hedgehog and is independent of the Quill.
+* Finally the commands in the completed section of the commands section are
+  executed.
+
