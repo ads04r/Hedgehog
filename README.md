@@ -33,7 +33,14 @@ or less often.
 
 To run hedgehog with a specific quill: 
 
-    publish_dataset <quill_name_here> --log
+    publish_dataset <quill_name_here> [<options>]
+
+Options are:
+
+* ```--log``` Logs to a log file, rather than STDOUT
+* ```--force``` Ignores hash check, always publishes
+* ```--republish``` Doesn't run quill, looks for a previous successful
+  publish and simply re-imports this
 
 Quills
 ------
