@@ -623,6 +623,10 @@ class Quill
 	{
 		// Start by duplicating the last dump directory into the hopper
 		$dumps_path = dirname($dumppath);
+		if(!(is_dir($dumps_path)))
+		{
+			mkdir($dumps_path);
+		}
 		$lastdumppath = "";
 		$dh = opendir($dumps_path);
 		$lastdt = 0;
