@@ -1024,7 +1024,7 @@ class Quill
 		{
 			if(
 			(preg_match("|^<(.+)> <(.+)> \"(.+)\" .$|", str_replace("\n", "", $triple_string)) == 0)
-			&
+			&&
 			(preg_match("|^(.+) <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> (.+)$|", str_replace("\n", "", $triple_string)) == 0)
 			)
 			{
