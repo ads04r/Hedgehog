@@ -1,3 +1,15 @@
 [submodule "tools"]
 	path = tools
 	url = git@github.com:ads04r/Hedgehog-Tools.git
+[submodule "lib/fatfree"]
+	path = lib/fatfree
+	url = git@github.com:bcosca/fatfree.git
+[submodule "lib/arc2"]
+	path = lib/arc2
+	url = git@github.com:semsol/arc2.git
+[submodule "lib/graphite"]
+	path = lib/graphite
+	url = git@github.com:cgutteridge/Graphite.git
+[submodule "lib/bootstrap"]
+	path = lib/bootstrap
+	url = git@github.com:twbs/bootstrap.git
