@@ -1,0 +1,101 @@
+#!/usr/bin/php -q
+<?php
+
+$base_path = dirname(dirname(__FILE__));
+$www_path = $base_path . "/var/www";
+$lib_path = $base_path . "/lib";
+
+include_once($www_path . "/init.php");
+
+$tests = array();
+
+$tests['qos'] = new Test;
+
+$tests['qos']->expect($f3->get('page_load_start'), "page_load_start is set");
+$tests['qos']->expect(($f3->get('page_load_start') <= microtime(true)), "page_load_start is in the past");
+
+
+if(file_exists($lib_path . "/jquery"))
+{
+	$tests['jquery'] = new Test;
+	$tests['jquery']->expect(file_exists($www_path . "/scripts/jquery/jquery.min.js"), "jQuery JavaScript file exists");
+}
+
+if(file_exists($lib_path . "/jquery-mobile"))
+{
+	$tests['jquery-mobile'] = new Test;
+	$tests['jquery-mobile']->expect(file_exists($www_path . "/scripts/jquery-mobile/jquery.mobile-1.4.5.min.js"), "jQuery-mobile JavaScript file exists");
+}
+
+if(file_exists($lib_path . "/popper"))
+{
+	$tests['popper'] = new Test;
+	$tests['popper']->expect(file_exists($www_path . "/scripts/popper/popper.min.js"), "Popper.js JavaScript file exists");
+}
+
+if(file_exists($lib_path . "/bootstrap"))
+{
+	$tests['bootstrap'] = new Test;
+	$tests['bootstrap']->expect(file_exists($www_path . "/scripts/bootstrap/bootstrap.min.js"), "Bootstrap JavaScript file exists");
+	$tests['bootstrap']->expect(file_exists($www_path . "/styles/bootstrap/bootstrap.min.css"), "Bootstrap CSS file exists");
+}
+
+if(file_exists($lib_path . "/chart"))
+{
+	$tests['chart'] = new Test;
+	$tests['chart']->expect(file_exists($www_path . "/scripts/chart/chart.bundle.min.js"), "Chart.js JavaScript file exists");
+}
+
+if(file_exists($lib_path . "/font-awesome"))
+{
+	$tests['font-awesome'] = new Test;
+	$tests['font-awesome']->expect(file_exists($www_path . "/styles/font-awesome/css/font-awesome.min.css"), "Font-Awesome main CSS file exists");
+	$tests['font-awesome']->expect(file_exists($www_path . "/styles/font-awesome/fonts/FontAwesome.otf"), "OTF format font exists");
+	$tests['font-awesome']->expect(file_exists($www_path . "/styles/font-awesome/fonts/fontawesome-webfont.eot"), "EOT format font exists");
+	$tests['font-awesome']->expect(file_exists($www_path . "/styles/font-awesome/fonts/fontawesome-webfont.svg"), "SVG format font exists");
+	$tests['font-awesome']->expect(file_exists($www_path . "/styles/font-awesome/fonts/fontawesome-webfont.ttf"), "TTF format font exists");
+	$tests['font-awesome']->expect(file_exists($www_path . "/styles/font-awesome/fonts/fontawesome-webfont.woff"), "WOFF format font exists");
+	$tests['font-awesome']->expect(file_exists($www_path . "/styles/font-awesome/fonts/fontawesome-webfont.woff2"), "WOFF2 format font exists");
+}
+
+if(file_exists($lib_path . "/ionicons"))
+{
+	$tests['ionicons'] = new Test;
+	$tests['ionicons']->expect(file_exists($www_path . "/styles/ionicons/ionicons.min.css"), "IonIcons main CSS file exists");
+	$tests['ionicons']->expect(file_exists($www_path . "/styles/ionicons/fonts/ionicons.eot"), "EOT format font exists");
+	$tests['ionicons']->expect(file_exists($www_path . "/styles/ionicons/fonts/ionicons.svg"), "SVG format font exists");
+	$tests['ionicons']->expect(file_exists($www_path . "/styles/ionicons/fonts/ionicons.ttf"), "TTF format font exists");
+	$tests['ionicons']->expect(file_exists($www_path . "/styles/ionicons/fonts/ionicons.woff"), "WOFF format font exists");
+	$tests['ionicons']->expect(file_exists($www_path . "/styles/ionicons/fonts/ionicons.woff2"), "WOFF2 format font exists");
+}
+
+if(file_exists($lib_path . "/graphite"))
+{
+	$tests['graphite'] = new Test;
+	$tests['graphite']->expect(file_exists($lib_path . "/graphite/Graphite.php"), "Graphite main library file exists");
+	$tests['graphite']->expect(file_exists($lib_path . "/arc2/ARC2.php"), "ARC2 main library file exists");
+	$tests['graphite']->expect(class_exists('Graphite'), "Graphite class exists");
+}
+
+
+error_log("Running tests at " . date("c"));
+error_log("");
+
+foreach($tests as $name=>$test)
+{
+	error_log("\033[33mTEST: " . strtoupper($name) . "\033[0m");
+	error_log("");
+
+	foreach($test->results() as $result)
+	{
+		$l = "[ \033[31mFAIL\033[0m ] ";
+		if($result['status'])
+		{
+			$l = "[ \033[32mPASS\033[0m ] ";
+		}
+		$l .= $result['text'];
+		error_log($l);
+	}
+
+	error_log("");
+}
