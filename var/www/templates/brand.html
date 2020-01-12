@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <link rel="icon" href="/favicon.ico">
+
+    <title><check if="{{ @page_title=='' }}"><true>{{ @site_title }} | {{ @site_blurb }}</true><false>{{ @page_title }} | {{ @site_title }}</false></check></title>
+
+<repeat group="{{ @styles }}" value="{{ @url }}">
+    <link href="{{ @url }}" rel="stylesheet">
+</repeat>
+
+  </head>
+
+  <body>
+
+<check if="{{ @page_content=='' }}">
+<true>
+<include href="{{ @page_template }}" />
+</true>
+<false>{{ @page_content | raw }}</false>
+</check>
+
+<repeat group="{{ @scripts }}" value="{{ @url }}">
+    <script src="{{ @url }}"></script>
+</repeat>
+
+  </body>
+
+</html>
