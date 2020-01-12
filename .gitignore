@@ -1,2 +1,6 @@
 bin/install
 var/www/tmp
+lib/chart/
+lib/font-awesome/
+lib/jquery/
+
