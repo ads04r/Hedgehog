@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
   <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
@@ -16,7 +17,44 @@
 
   </head>
 
-  <body>
+<!--
+BODY TAG OPTIONS:
+=================
+Apply one or more of the following classes to to the body tag
+to get the desired effect
+|---------------------------------------------------------|
+|LAYOUT OPTIONS | sidebar-collapse                        |
+|               | sidebar-mini                            |
+|---------------------------------------------------------|
+-->
+
+<body class="hold-transition sidebar-mini">
+<div class="wrapper">
+
+<include href="templates/navbar.html" />
+
+  <!-- Main Sidebar Container -->
+  <aside class="main-sidebar sidebar-dark-primary elevation-4">
+
+<include href="templates/logo.html" />
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+
+<include href="templates/leftmenu.html" />
+
+    </div>
+    <!-- /.sidebar -->
+  </aside>
+
+  <!-- Content Wrapper. Contains page content -->
+  <div class="content-wrapper">
+    <!-- Content Header (Page header) -->
+
+<include href="templates/pageheader.html" />
+
+    <!-- Main content -->
+    <div class="content">
 
 <check if="{{ @page_content=='' }}">
 <true>
@@ -25,10 +63,20 @@
 <false>{{ @page_content | raw }}</false>
 </check>
 
+    </div>
+    <!-- /.content -->
+  </div>
+  <!-- /.content-wrapper -->
+
+<include href="templates/rightmenu.html"/>
+<include href="templates/footer.html"/>
+
+</div>
+<!-- ./wrapper -->
+
 <repeat group="{{ @scripts }}" value="{{ @url }}">
     <script src="{{ @url }}"></script>
 </repeat>
 
-  </body>
-
+</body>
 </html>

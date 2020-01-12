@@ -13,3 +13,6 @@
 [submodule "lib/bootstrap"]
 	path = lib/bootstrap
 	url = git@github.com:twbs/bootstrap.git
+[submodule "lib/adminlte"]
+	path = lib/adminlte
+	url = git@github.com:almasaeed2010/AdminLTE.git
