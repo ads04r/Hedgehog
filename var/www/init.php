@@ -26,8 +26,8 @@ $f3 = require($lib_path . "/fatfree/lib/base.php");
 
 $f3->set('page_load_start', $page_load_start);
 $f3->set('DEBUG', true);
-$f3->set('site_title', "A website");
-$f3->set('site_blurb', "Something about a website");
+$f3->set('site_title', "Hedgehog");
+$f3->set('site_blurb', "RDF Publishing Tool");
 $f3->set('page_title', "");
 $f3->set('page_data', "");
 $f3->set('error_data', array());

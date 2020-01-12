@@ -1,5 +1,2 @@
-settings/main.json
-settings/paths.conf
-settings/graphite.conf
-settings/config.conf
-timestamps
+bin/install
+var/www/tmp
