@@ -2,6 +2,7 @@ Hedgehog RDF Publisher
 ======================
 
 By Ash Smith
+
 Based heavily on the work of Christopher Gutteridge, University of Southampton
 
 Hedgehog is a system for publishing datasets in RDF. The core system runs
@@ -11,7 +12,7 @@ Examples include
 
 * Converting the data to RDF documents in various formats, such as Turtle
 * Automatically adding meta-data about the data, including provenance
-* Importing the triples into a triplestore such as 4store
+* Publishing the triples into a triplestore such as 4store
 * Uploading the data documents to a server for publishing on the web
 * Exporting smaller chunks of the data based on a template
 
@@ -37,10 +38,10 @@ To run hedgehog with a specific quill:
 
 Options are:
 
-* ```--log``` Logs to a log file, rather than STDOUT
-* ```--force``` Ignores hash check, always publishes
+* ```--log```       Logs to a log file, rather than STDOUT
+* ```--force```     Ignores hash check, always publishes
 * ```--republish``` Doesn't run quill, looks for a previous successful
-  publish and simply re-imports this
+                    publish and simply re-publishing this
 
 Quills
 ------
@@ -51,6 +52,7 @@ acquire and/or process the data into the correct format.
 
 * The first thing Hedgehog does is creates a new temporary directory and
   copies all of the files from the Quill directory into that directory.
+  The quill can be a ZIP archive.
 * It then goes to the Download section of the quill publish.json and
   performs all download steps specified.
 * It then goes to the tools section of the quill publish.json and copies
