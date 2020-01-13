@@ -1,5 +1,5 @@
 [submodule "tools"]
-	path = etc/tools
+	path = usr/tools
 	url = git@github.com:ads04r/Hedgehog-Tools.git
 [submodule "lib/fatfree"]
 	path = lib/fatfree
