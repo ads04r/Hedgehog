@@ -5,6 +5,7 @@ $base_path = dirname(dirname(dirname(__FILE__)));
 $lib_path = $base_path . "/lib";
 $etc_path = $base_path . "/etc";
 $www_path = $base_path . "/var/www";
+$config = array();
 $js = array();
 $css = array();
 
@@ -22,28 +23,41 @@ foreach(array("scripts/jquery/jquery.min.js","scripts/popper/popper.min.js","scr
 	$js[] = "/" . $file;
 }
 
+$dp = opendir($etc_path);
+while($file = readdir($dp))
+{
+    if(preg_match("/\\.json$/", $file) == 0) { continue; }
+    $key = strtolower(preg_replace("/\\.json$/", "", $file));
+    $value = json_decode(file_get_contents($etc_path . "/" . $file), true);
+    if(!(is_array($value))) { continue; }
+    $config[$key] = $value;
+}
+closedir($dp);
+
+$db = False;
+if(array_key_exists("database", $config))
+{
+    $db = new mysqli($config['database']['host'], $config['database']['user'], $config['database']['password'], $config['database']['database'], $config['database']['port']);
+}
+
+$css[] = "/styles/hedgehog.css";
+
 $f3 = require($lib_path . "/fatfree/lib/base.php");
 
 $f3->set('page_load_start', $page_load_start);
 $f3->set('DEBUG', true);
 $f3->set('site_title', "Hedgehog");
 $f3->set('site_blurb', "RDF Publishing Tool");
+$f3->set('site_config', $config);
 $f3->set('page_title', "");
+$f3->set('page_class', "");
 $f3->set('page_data', "");
 $f3->set('error_data', array());
 $f3->set('page_template', "");
 $f3->set('page_content', "");
 $f3->set('page_triples', 0);
+$f3->set('database', $db);
 $f3->set('brand_file', "templates/brand.html");
 $f3->set('styles', $css);
 $f3->set('scripts', $js);
-
-$f3->route("GET /", function($f3)
-{
-        date_default_timezone_set("Europe/London");
-
-        $template = new Template();
-        $f3->set('page_template', "templates/home.html");
-        echo $template->render($f3->get('brand_file'));
-});
 

@@ -1,0 +1,7 @@
+.content-wrapper { background-image: linear-gradient(#4b545c, #f4f6f9); }
+
+.breadcrumb-item { color: #f8f9fa !important; }
+
+.cell-stretch { width: 100%; }
+
+.no-wrap { white-space: nowrap; }

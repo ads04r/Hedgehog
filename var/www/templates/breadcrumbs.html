@@ -1,5 +1,6 @@
             <ol class="breadcrumb float-sm-right">
 
-              <li class="breadcrumb-item active">Dashboard</li>
+              <check if="{{ strlen(@page_class) > 0 }}"><true><li class="breadcrumb-item">{{ @page_class }}</li></true></check>
+              <li class="breadcrumb-item active">{{ @page_title }}</li>
 
             </ol>
