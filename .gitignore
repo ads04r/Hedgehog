@@ -3,6 +3,7 @@ var/www/tmp
 lib/chart/
 lib/font-awesome/
 lib/jquery/
+lib/twitter/
 
 .kdev4
 hedgehog.kdev4

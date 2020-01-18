@@ -3,7 +3,7 @@
 
 // Import classes
 
-$lib_dir = dirname(dirname(__FILE__)) . "/lib";
+$lib_dir = dirname(dirname(__FILE__)) . "/lib/hedgehog";
 if($fh = opendir($lib_dir))
 {
 	while(false != ($lib_file = readdir($fh)))
@@ -16,147 +16,10 @@ if($fh = opendir($lib_dir))
 	}
 }
 
-// Command line handling functions
-
-function getDatasets()
+foreach(array_splice($argv, 1) as $quillid)
 {
-	global $argv;
-
-	$datasets = array();
-	for($i = 1; $i < (count($argv)); $i++)
-	{
-		if (strcmp(substr($argv[$i], 0, 1), "-") != 0)
-		{
-			$datasets[] = trim($argv[$i], "/");
-		}
-	}
-	
-	return($datasets);
+    error_log($quillid);
+    $quill = new Quill($quillid);
+    $ret = $quill->publish();
+    if($ret > 0) { var_dump($quill->errors); exit(1); }
 }
-
-function createSwitches()
-{
-	global $argv;
-
-	$switches = array();
-
-	// Process command line arguments
-	$datasets = array();
-	$switches = array();
-	for($i = 1; $i < (count($argv)); $i++)
-	{
-		if (strcmp(substr($argv[$i], 0, 1), "-") == 0)
-		{
-			$k = $argv[$i];
-			$switches[$k] = '';
-		}
-	}
-	
-	// Set variable $log if the user requests it.
-	if((array_key_exists("--log", $switches)) | (array_key_exists("-log", $switches)) | (array_key_exists("-l", $switches)))
-	{
-		$switches['log'] = true;
-	}
-	else
-	{
-		$switches['log'] = false;
-	}
-	
-	// Set variable $quiet if the user requests it.
-	if((array_key_exists("--quiet", $switches)) | (array_key_exists("-quiet", $switches)) | (array_key_exists("-q", $switches)))
-	{
-		$switches['quiet'] = true;
-	}
-	else
-	{
-		$switches['quiet'] = false;
-	}
-	
-	// Set variable $force_import if the user requests it.
-	if(array_key_exists("--force", $switches))
-	{
-		$switches['force'] = true;
-	}
-	else
-	{
-		$switches['force'] = false;
-	}
-	
-	// Set variable $republish if the user requests it.
-	if(array_key_exists("--republish", $switches))
-	{
-		$switches['republish'] = true;
-	}
-	else
-	{
-		$switches['republish'] = false;
-	}
-	
-	// Display help if the user requests it.
-	if((array_key_exists("--help", $switches)) | (array_key_exists("-help", $switches)) | (array_key_exists("-h", $switches)) | (array_key_exists("-?", $switches)))
-	{
-		$switches['help'] = true;
-	}
-	else 
-	{
-		$switches['help'] = false;
-	}
-
-	return($switches);
-}
-
-// Function for displaying command line help.
-function display_help($extended=false)
-{
-	print("publish_dataset\n");
-	print("---------------\n");
-	print("A tool for publishing datasets within the Hedgehog system.\n\n");
-	print("Usage: publish_dataset [options] dataset [dataset [dataset [...]]]\n\n");
-	if($extended)
-	{
-		// Show extended help
-		print("Options\n");
-		print("  --help       Show this help screen\n");
-		print("  --quiet      No output (good for cron)\n");
-		print("  --force      Publish even if nothing has changed\n");
-		print("  --republish  Import last successful data publish into triplestore\n");
-		print("  --log        Write output to logfile rather than stdout/err\n");
-	} else {
-		print("Use --help switch for more options.\n");
-	}
-	print("\n");
-}
-
-// ================== Main script start here =================================
-
-$switches = createSwitches();
-$datasets = getDatasets();
-
-// Display help page if requested, or if parameters are incorrect.
-if(($switches['help']) | (count($datasets) == 0))
-{
-	if($switches['help'])
-	{
-		display_help(true);
-	} else {
-		display_help();
-	}
-	exit();
-}
-
-$hedgehog = new Hedgehog($switches['quiet'], $switches['force'], $switches['log']);
-
-foreach($datasets as $dataset)
-{
-	global $current_hedgehog_dataset;
-	$current_hedgehog_dataset = $dataset;
-	
-	$error = $hedgehog->publishDataset($dataset, $switches['republish']);
-	if(strlen($error) > 0)
-	{
-		$hedgehog->log_error($error);
-		$hedgehog->log_error("Dataset '" . $dataset . "' NOT published.");
-		exit(1);
-	}
-}
-
