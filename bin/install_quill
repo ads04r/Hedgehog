@@ -1,0 +1,29 @@
+#!/usr/bin/php -q
+<?php
+
+$www_dir = dirname(dirname(__FILE__)) . "/var/www";
+
+include_once($www_dir . "/init.php");
+
+foreach(array_splice($argv, 1) as $input_path)
+{
+    $path = rtrim(realpath($input_path), "/");
+    $id = preg_replace("#^(.*)/([^/]*)$#", "$2", $path);
+    if(strlen($id) == 0) { continue; }
+    if(!(file_exists($path))) { continue; }
+    if(!(file_exists($path . "/publish.json"))) { continue; }
+    
+    $query = "SELECT * FROM quills WHERE id='" . $db->escape_string($id) . "';";
+    $res = $db->query($query);
+    $rows = $res->num_rows;
+    $res->free();
+    
+    if($rows > 0) { continue; }
+    
+    $info = json_decode(file_get_contents($path . "/publish.json"), true);
+    $title = $info['properties']['title'];
+    $description = $info['properties']['description'];
+
+    $query = "INSERT INTO quills (id, label, comment, path) VALUES ('" . $db->escape_string($id) . "', '" . $db->escape_string($title) . "', '" . $db->escape_string($description) . "', '" . $db->escape_string($path) . "');";
+    $db->query($query);
+}

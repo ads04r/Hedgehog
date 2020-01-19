@@ -6,9 +6,107 @@ class Quill
     private $db;
     private $id;
     private $env;
+    private $hopper_path;
     
     public $errors;
 
+    private function importFile($filename)
+    {
+        $query = "DELETE FROM uris WHERE quill='" . $this->db->escape_string($this->id) . "';";
+        $this->db->query($query);
+    
+        $g = new Graphite();
+        $g->load($filename);
+        foreach($g->allSubjects() as $res)
+        {
+            $subject_uri = "" . $res;
+            $subject_id = $this->getUriId($subject_uri);
+            foreach($res->relations() as $rel)
+            {
+                $predicate_uri = "" . $rel;
+                $predicate_id = $this->getUriId($predicate_uri);
+                foreach($res->all($predicate_uri) as $object)
+                {
+                    $object_type_uri = "" . $object->datatype();
+                    $object_type_id = 0;
+                    $object_id = 0;
+                    if(strlen($object_type_uri) > 0)
+                    {
+                        if(preg_match("#^([a-zA-Z0-9]+)://(.*)$#", $object_type_uri) > 0)
+                        {
+                            $object_type_id = $this->getUriId($object_type_uri);
+                        }
+                    }
+                    
+                    if($object_type_id == 0)
+                    {
+                        $object_uri = "" . $object;
+                        if(preg_match("#^([a-zA-Z0-9]+)://(.*)$#", $object_uri) > 0)
+                        {
+                            $object_id = $this->getUriId($object_uri);
+                        }
+                    }
+                    
+                    if($object_id > 0)
+                    {
+                        $query = "INSERT INTO triples (s, p, o, quill) VALUES ('" . $subject_id . "', '" . $predicate_id . "', '" . $object_id . "', '" . $this->db->escape_string($this->id) . "');";
+                    }
+                    else
+                    {
+                        $query = "INSERT INTO triples (s, p, o_text, o_type, quill) VALUES ('" . $subject_id . "', '" . $predicate_id . "', '" . $this->db->escape_string("" . $object) . "', '" . $object_type_id . "', '" . $this->db->escape_string($this->id) . "');";
+                    }
+                    
+                    $this->db->query($query);
+                }
+            }
+        }
+    }
+    
+    private function getPrefixId($uri)
+    {
+        $query = "SELECT id FROM prefix WHERE uri='" . $this->db->escape_string($uri) . "';";
+        $res = $this->db->query($query);
+        $ret = 0;
+        if($row = $res->fetch_assoc())
+        {
+            $ret = (int) $row['id'];
+        }
+        $res->free();
+        
+        if($ret > 0) { return($ret); }
+        
+        $query = "INSERT INTO prefix (prefix, uri, label) VALUES ('', '" . $this->db->escape_string($uri) . "', '');";
+        if($res = $this->db->query($query)) { $ret = $this->db->insert_id; }
+        
+        return($ret);
+    }
+    
+    private function getUriId($uri)
+    {
+        $m = array();
+        preg_match("|^(.*)([/#])([^/#]*.)$|", $uri, $m);
+        $prefix = $m[1] . $m[2];
+        $name = $m[3];
+        if(preg_match("|://$|", $prefix) > 0) { $prefix = $prefix . $name; $name = ""; }
+        $prefix_id = $this->getPrefixId($prefix);
+        
+        $query = "SELECT id FROM uris WHERE prefix='" . $prefix_id . "' AND name='" . $this->db->escape_string($name) . "';";
+        $res = $this->db->query($query);
+        $ret = 0;
+        if($row = $res->fetch_assoc())
+        {
+            $ret = (int) $row['id'];
+        }
+        $res->free();
+        
+        if($ret > 0) { return($ret); }
+        
+        $query = "INSERT INTO uris (prefix, name) VALUES ('" . $prefix_id . "', '" . $this->db->escape_string($name) . "');";
+        if($res = $this->db->query($query)) { $ret = $this->db->insert_id; }
+        
+        return($ret);
+    }
+    
     private function externalScript($command_line)
     {
         $descriptorspec = array(
@@ -76,13 +174,19 @@ class Quill
         if(!(array_key_exists("incoming_path", $config['paths']))) { $config['paths']['incoming_path'] = $var_path . "/incoming"; }
         if(!(array_key_exists("tools_path", $config['paths']))) { $config['paths']['tools_path'] = $usr_path . "/tools"; }
         
+        $this->hopper_path = $config['paths']['hopper_path'] . "/" . $this->id . "." . getmypid();
         $this->config = $config;
         $this->db = $db;
+        
+        if(!(file_exists($this->hopper_path)))
+        {
+            mkdir($this->hopper_path, 0755, true);
+        }
     }
     
     function publish($force=false)
     {
-        $hopper_path = $this->config['paths']['hopper_path'] . "/" . $this->id . "." . getmypid();
+        $hopper_path = $this->hopper_path;
         $quill_path = $this->config['quill']['path'];
         if(!(file_exists($hopper_path)))
         {
@@ -173,6 +277,20 @@ class Quill
             }
         }
 
+        if(count($this->errors) > 0) { return(count($this->errors)); } // Exit here if there are issues
+        
+        $import_file = "";
+        if(array_key_exists("import_file", $info)) { $import_file = $info['import_file']; }
+        if(array_key_exists("import_file", $info['properties'])) { $import_file = $info['properties']['import_file']; }
+        if(!(file_exists($import_file))) { $this->errors[] = "Could not find import file: " . $import_file; }
+
+        if(count($this->errors) > 0) { return(count($this->errors)); } // Exit here if there are issues
+        
+        $this->importFile($import_file);
+        
+        $query = "UPDATE quills SET last_publish=NOW() WHERE id='" . $this->db->escape_string($this->id) . "';";
+        $this->db->query($query);
+        
         return(count($this->errors));
     }
 }
