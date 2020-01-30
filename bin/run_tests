@@ -6,6 +6,7 @@ $www_path = $base_path . "/var/www";
 $lib_path = $base_path . "/lib";
 
 include_once($www_path . "/init.php");
+include_once($www_path . "/f3.php");
 
 $tests = array();
 

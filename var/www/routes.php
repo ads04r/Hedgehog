@@ -32,6 +32,29 @@ $f3->route("GET /datasets.html", function($f3)
         echo $template->render($f3->get('brand_file'));
 });
 
+$f3->route("GET /templates.html", function($f3)
+{
+        date_default_timezone_set("Europe/London");
+        $db = $f3->get('database');
+        
+        $data = array();
+        if($db)
+        {
+            $res = $db->query("SELECT class AS id, CONCAT(prefix.uri, uris.name) AS uri, template FROM templates, uris, prefix WHERE uris.id=templates.class AND uris.prefix=prefix.id ORDER BY uri ASC;");
+            while($row = $res->fetch_assoc())
+            {
+                $data[] = $row;
+            }
+            $res->close();
+        }
+
+        $template = new Template();
+        $f3->set('page_title', "Class Templates");
+        $f3->set('page_template', "templates/pages/templates.html");
+        $f3->set('page_data', $data);
+        echo $template->render($f3->get('brand_file'));
+});
+
 $f3->route("GET /datasets/@id.html", function($f3, $params)
 {
         date_default_timezone_set("Europe/London");

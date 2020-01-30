@@ -139,7 +139,7 @@ class Quill
     
     function __construct($id)
     {
-        include_once(dirname(dirname(dirname(__FILE__))) . "/var/www/init.php");
+        include(dirname(dirname(dirname(__FILE__))) . "/var/www/init.php");
 
         $this->env = array();
         $this->env["HEDGEHOG_CONFIG_ARC2_PATH"] = $lib_path . "/arc2/ARC2.php";
@@ -287,6 +287,26 @@ class Quill
         if(count($this->errors) > 0) { return(count($this->errors)); } // Exit here if there are issues
         
         $this->importFile($import_file);
+        
+        if(count($this->errors) > 0) { return(count($this->errors)); } // Exit here if there are issues
+        
+        $query = "SELECT * FROM exports";
+        $res = $this->db->query($query);
+        while($row = $res->fetch_assoc())
+        {
+            $export_config = json_decode($row['config'], true);
+            $action_type = $export_config['action'];
+            
+            if(strcmp($action_type, "dump") == 0)
+            {
+                $dump_path = $export_config['path'];
+                $dump_path = str_replace("%DATE%", date("Y-m-d"), $dump_path);
+                $dump_path = str_replace("%QUILL%", $this->id, $dump_path);
+                
+                error_log("Dumping to " . $dump_path);
+            }
+        }
+        $res->free();
         
         $query = "UPDATE quills SET last_publish=NOW() WHERE id='" . $this->db->escape_string($this->id) . "';";
         $this->db->query($query);
