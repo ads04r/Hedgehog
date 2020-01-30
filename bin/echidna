@@ -1,0 +1,25 @@
+#!/usr/bin/php -q
+<?php
+
+// Import classes
+
+$lib_dir = dirname(dirname(__FILE__)) . "/lib/hedgehog";
+if($fh = opendir($lib_dir))
+{
+    while(false != ($lib_file = readdir($fh)))
+    {
+        if(preg_match("/\\.php$/", $lib_file) == 0)
+        {
+            continue;
+        }
+        include_once($lib_dir . '/' . $lib_file);
+    }
+}
+
+foreach(array_splice($argv, 1) as $class)
+{
+    error_log($class);
+    $echidna = new Echidna($class);
+    $ret = $echidna->export();
+    if($ret > 0) { var_dump($echidna->errors); exit(1); }
+}
