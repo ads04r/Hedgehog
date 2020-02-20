@@ -5,6 +5,7 @@ lib/jquery/
 lib/twitter/
 lib/tmdb4php/
 var/www/tmp/*.php
+etc/quills/[a-z0-9]*
 
 .kdev4
 hedgehog.kdev4
