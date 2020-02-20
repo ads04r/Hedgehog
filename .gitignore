@@ -4,6 +4,7 @@ lib/font-awesome/
 lib/jquery/
 lib/twitter/
 lib/tmdb4php/
+var/www/tmp/*.php
 
 .kdev4
 hedgehog.kdev4
