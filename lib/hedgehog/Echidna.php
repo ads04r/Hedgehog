@@ -71,14 +71,21 @@ class Echidna
     private function graphite()
     {
         $g = new Graphite();
+        $query = "SELECT prefix, uri FROM prefix WHERE prefix<>'';";
+        $res = $this->db->query($query);
+        while($row = $res->fetch_assoc())
+        {
+            $g->ns($row['prefix'], $row['uri']);
+        }
+        $res->free();
         return($g);
     }
     
     function export($dump_path)
     {
-        $g = $this->graphite();
         foreach($this->subjects() as $rootid)
         {
+            $g = $this->graphite();
             $triples = array();
             $uri = $this->idtouri($rootid);
             $md5 = md5($uri);
@@ -88,7 +95,8 @@ class Echidna
             foreach($this->config['template'] as $path)
             {
                 if(strlen($path) == 0) { continue; }
-                foreach($this->get_triples($uri, explode("/", $path)) as $triple)
+		$pathlist = explode("/", $path);
+                foreach($this->get_triples($uri, $pathlist) as $triple)
                 {
                     $triples[] = $triple;
                 }
@@ -140,6 +148,22 @@ class Echidna
         }
         
         $ret = array();
+        $query = "SELECT DISTINCT s, p, o, o_text, o_type FROM triples WHERE s='" . $root_id . "';";
+        $res = $this->db->query($query);
+        while(false != ($row = $res->fetch_assoc()))
+        {
+            $item = array();
+            $item['s'] = $this->idtouri((int) $row['s']);
+            $item['p'] = $this->idtouri((int) $row['p']);
+            $item['o'] = "" . $row['o'];
+            $item['o_text'] = "" . $row['o_text'];
+            $item['o_type'] = "" . $row['o_type'];
+            if(strlen($item['o']) > 0) { $item['o'] = $this->idtouri((int) $item['o']); }
+            if(strlen($item['o_type']) > 0) { $item['o_type'] = $this->idtouri((int) $item['o']); }
+            $ret[] = $item;
+        }
+        $res->free();
+        
         foreach($this->_get_triples($root_id, $stack) as $row)
         {
             $item = array();
