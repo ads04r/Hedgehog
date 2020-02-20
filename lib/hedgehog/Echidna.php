@@ -5,7 +5,10 @@ class Echidna
     private $config;
     private $db;
     private $id;
+    private $uri;
     private $env;
+    
+    private $cache;
     
     public $errors;
 
@@ -24,10 +27,12 @@ class Echidna
         return($ret);
     }
     
-    function idtouri($id)
+    private function idtouri($id)
     {
-        $ret = 0;
-        $query = "SELECT CONCAT(prefix.uri, uris.name) as uri FROM uris, prefix WHERE uris.prefix=prefix.id AND uris.id='" . ((int) $id) . "';";
+        if(array_key_exists("_" . $id, $this->cache)) { return($this->cache["_" . $id]); }
+    
+        $ret = "";
+        $query = "SELECT CONCAT(prefix.uri, uris.name) AS uri FROM uris, prefix WHERE uris.prefix=prefix.id AND uris.id='" . ((int) $id) . "';";
         $res = $this->db->query($query);
         if($row = $res->fetch_assoc())
         {
@@ -35,23 +40,173 @@ class Echidna
         }
         $res->free();
 
+        if(strlen($ret) > 0)
+        {
+            $this->cache["_" . $id] = $ret;
+            $this->cache[$ret] = $id;
+        }
         return($ret);
     }
     
-    function export()
+    private function uritoid($uri)
     {
-        $triples = array();
+        if(array_key_exists($uri, $this->cache)) { return($this->cache[$uri]); }
+
+        $ret = 0;
+        $query = "SELECT uris.id FROM uris, prefix WHERE uris.prefix=prefix.id AND (CONCAT(prefix.uri, uris.name)='" . $this->db->escape_string($uri) . "' OR CONCAT(prefix.prefix, ':', uris.name)='" . $this->db->escape_string($uri) . "');";
+        $res = $this->db->query($query);
+        if($row = $res->fetch_assoc())
+        {
+            $ret = (int) $row['id'];
+        }
+        $res->free();
+
+        if($ret > 0)
+        {
+            $this->cache[$uri] = $ret;
+        }
+        return($ret);
+    }
+    
+    private function graphite()
+    {
+        $g = new Graphite();
+        return($g);
+    }
+    
+    function export($dump_path)
+    {
+        $g = $this->graphite();
         foreach($this->subjects() as $rootid)
         {
-            print($this->idtouri($rootid) . "\n");
+            $triples = array();
+            $uri = $this->idtouri($rootid);
+            $md5 = md5($uri);
+            $export_path = $dump_path . "/" . substr($md5, 0, 1);
+            $export_file = $export_path . "/" . $md5 . ".ttl";
+            error_log($export_file . ": " . $uri);
+            foreach($this->config['template'] as $path)
+            {
+                if(strlen($path) == 0) { continue; }
+                foreach($this->get_triples($uri, explode("/", $path)) as $triple)
+                {
+                    $triples[] = $triple;
+                }
+            }
+            foreach($triples as $triple)
+            {
+                if((strlen($triple['o_text']) == 0) && (strlen($triple['o_type']) == 0))
+                {
+                    $g->t($triple['s'], $triple['p'], $triple['o']);
+                }
+                else {
+                    $g->t($triple['s'], $triple['p'], $triple['o_text'], $triple['o_type']);
+                }
+            }
+
+            if(!(file_exists($export_path))) { mkdir($export_path, 0755, true); }
+            $fp = fopen($export_file, "w");
+            fwrite($fp, $g->serialize("Turtle"));
+            fclose($fp);
         }
+        
         return(count($this->errors));
+    }
+    
+    private function get_triples($root_uri, $path)
+    {
+        if(!(is_array($path))) { return(array()); }
+        if(count($path) == 0) { return(array()); }
+        
+        $root_id = $this->uritoid($root_uri);
+        $stack = array();
+        $ret = array();
+        foreach($path as $step)
+        {
+            $direction = 1;
+            $item = trim($step);
+            if(strcmp(substr($step, 0, 1), "-") == 0)
+            {
+                $direction = -1;
+                $item = trim(substr($step, 1));
+            }
+            if(strcmp($item, "*") == 0)
+            {
+                $item_id = 0;
+            } else {
+                $item_id = $this->uritoid($item);
+            }
+            $stack[] = $item_id * $direction;
+        }
+        
+        $ret = array();
+        foreach($this->_get_triples($root_id, $stack) as $row)
+        {
+            $item = array();
+            $item['s'] = $this->idtouri((int) $row['s']);
+            $item['p'] = $this->idtouri((int) $row['p']);
+            $item['o'] = "" . $row['o'];
+            $item['o_text'] = "" . $row['o_text'];
+            $item['o_type'] = "" . $row['o_type'];
+            if(strlen($item['o']) > 0) { $item['o'] = $this->idtouri((int) $item['o']); }
+            if(strlen($item['o_type']) > 0) { $item['o_type'] = $this->idtouri((int) $item['o']); }
+            $ret[] = $item;
+        }
+        return($ret);
+    }
+    
+    private function _get_triples($root_id, $path)
+    {
+        if(count($path) == 0) { return(array()); }
+        
+        $pred_id = $path[0];
+        $next_path = array_slice($path, 1);
+        $next_calls = array();
+        $ret = array();
+        
+        if($pred_id >= 0)
+        {
+            $query = "SELECT DISTINCT s, p, o, o_text, o_type FROM triples WHERE s='" . $root_id . "' AND p='" . $pred_id . "';";
+            if($pred_id == 0) { $query = "SELECT DISTINCT s, p, o, o_text, o_type FROM triples WHERE s='" . $root_id . "';"; }
+            $res = $this->db->query($query);
+            while(false != ($row = $res->fetch_assoc()))
+            {
+                $ret[] = $row;
+                $o = (int) $row['o'];
+                if($o > 0) { $next_calls[] = $o; }
+            }
+            $res->free();
+        }
+        else
+        {
+            $query = "SELECT DISTINCT s, p, o, o_text, o_type FROM triples WHERE o='" . $root_id . "' AND p='" . (0 - $pred_id) . "';";
+            $res = $this->db->query($query);
+            while(false != ($row = $res->fetch_assoc()))
+            {
+                $ret[] = $row;
+                $s = (int) $row['s'];
+                if($s > 0) { $next_calls[] = $s; }
+            }
+            $res->free();            
+        }
+        
+        foreach($next_calls as $id)
+        {
+            foreach($this->_get_triples($id, $next_path) as $row)
+            {
+                $ret[] = $row;
+            }
+        }
+        
+        return($ret);
     }
     
     function __construct($type_uri)
     {
         include(dirname(dirname(dirname(__FILE__))) . "/var/www/init.php");
 
+        $this->cache = array();
+        $this->db = $db;
         $this->env = array();
         $this->env["HEDGEHOG_CONFIG_ARC2_PATH"] = $lib_path . "/arc2/ARC2.php";
         $this->env["HEDGEHOG_CONFIG_GRAPHITE_PATH"] = $lib_path . "/graphite/Graphite.php";
@@ -62,17 +217,18 @@ class Echidna
 
         $this->errors = array();
         $this->id = 0;
-        $query = "SELECT uris.id FROM uris, prefix WHERE uris.prefix=prefix.id AND (CONCAT(prefix.uri, uris.name)='" . $db->escape_string($type_uri) . "' OR CONCAT(prefix.prefix, ':', uris.name)='" . $db->escape_string($type_uri) . "');";
-        $res = $db->query($query);
+        $query = "SELECT uris.id FROM uris, prefix WHERE uris.prefix=prefix.id AND (CONCAT(prefix.uri, uris.name)='" . $this->db->escape_string($type_uri) . "' OR CONCAT(prefix.prefix, ':', uris.name)='" . $this->db->escape_string($type_uri) . "');";
+        $res = $this->db->query($query);
         if($row = $res->fetch_assoc())
         {
-            $this->id = $row['id'];
+            $this->id = (int) $row['id'];
+            $this->uri = $this->idtouri($this->id);
         }
         $res->free();
 
         $config['template'] = array();
-        $query = "SELECT * FROM templates WHERE class='" . $db->escape_string($this->id) . "';";
-        $res = $db->query($query);
+        $query = "SELECT * FROM templates WHERE class='" . $this->db->escape_string($this->id) . "';";
+        $res = $this->db->query($query);
         if($row = $res->fetch_assoc())
         {
             $config['template'] = explode("\n", $row['template']);
@@ -80,6 +236,5 @@ class Echidna
         $res->free();
         
         $this->config = $config;
-        $this->db = $db;
     }
 }
