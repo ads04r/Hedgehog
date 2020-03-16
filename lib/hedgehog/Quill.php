@@ -109,27 +109,15 @@ class Quill
     
     private function externalScript($command_line)
     {
-        $descriptorspec = array(
-            0 => array("pipe", "r"), // stdin
-            1 => array("pipe", "w"), // stdout
-            2 => array("pipe", "w")  // stderr
-        );
-        $pipes = array();
-        
-        if(is_array($this->env))
-        {
-            $process = proc_open($command_line, $descriptorspec, $pipes, NULL, $this->env);
-        }
-        else
-        {
-            $process = proc_open($command_line, $descriptorspec, $pipes);
-        }
-        $stdout = stream_get_contents($pipes[1]);
-        fclose($pipes[1]);
-        $stderr = stream_get_contents($pipes[2]);
-        fclose($pipes[2]);
-        $ret = proc_close($process);
-        
+	$ret = 1;
+	$stdout = "";
+	$stderr = "";
+
+	$out = array();
+	$retcode = 0;
+	exec($command_line . " 2> /dev/null", $out, $ret);
+	$stdout = implode("\n", $out);
+
         return(array(
             "code" => $ret,
             "stdout" => $stdout,
@@ -265,7 +253,7 @@ class Quill
         chdir($hopper_path);
         
         $commands = $info['commands'];
-        if(array_key_exists("prepare", $commands))
+        if(array_key_exists("import", $commands))
         {
             foreach($commands['import'] as $command)
             {
@@ -302,8 +290,19 @@ class Quill
                 $dump_path = $export_config['path'];
                 $dump_path = str_replace("%DATE%", date("Y-m-d"), $dump_path);
                 $dump_path = str_replace("%QUILL%", $this->id, $dump_path);
-                
-                error_log("Dumping to " . $dump_path);
+
+	        if(!(file_exists($dump_path)))
+	        {
+	            mkdir($dump_path, 0755, true);
+	        }
+                $dp = opendir($hopper_path);
+                while($fn = readdir($dp))
+                {
+                    if(strcmp(substr($fn, 0, 1), ".") == 0) { continue; }
+                    if(preg_match("/\\.private$/", $fn) > 0) { continue; }
+                    copy($hopper_path . "/" . $fn, $dump_path . "/" . $fn);
+                    chmod($dump_path . "/" . $fn, fileperms($hopper_path . "/" . $fn));
+                }
             }
         }
         $res->free();
