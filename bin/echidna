@@ -20,6 +20,6 @@ foreach(array_splice($argv, 1) as $class)
 {
     error_log($class);
     $echidna = new Echidna($class);
-    $ret = $echidna->export("/home/pi/data/rdf");
+    $ret = $echidna->export("/home/pi/rdf");
     if($ret > 0) { var_dump($echidna->errors); exit(1); }
 }
