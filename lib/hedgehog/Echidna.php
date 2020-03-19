@@ -88,14 +88,17 @@ class Echidna
             $g = $this->graphite();
             $triples = array();
             $uri = $this->idtouri($rootid);
+
             $md5 = md5($uri);
             $export_path = $dump_path . "/" . substr($md5, 0, 1);
             $export_file = $export_path . "/" . $md5 . ".ttl";
             error_log($export_file . ": " . $uri);
-            foreach($this->config['template'] as $path)
+
+            foreach($this->_get_template($uri) as $rawxpath)
             {
-                if(strlen($path) == 0) { continue; }
-		$pathlist = explode("/", $path);
+                $xpath = trim($rawxpath);
+                if(strlen($xpath) == 0) { continue; }
+		$pathlist = explode("/", $xpath);
                 foreach($this->get_triples($uri, $pathlist) as $triple)
                 {
                     $triples[] = $triple;
@@ -211,7 +214,7 @@ class Echidna
                 $s = (int) $row['s'];
                 if($s > 0) { $next_calls[] = $s; }
             }
-            $res->free();            
+            $res->free();
         }
         
         foreach($next_calls as $id)
@@ -222,6 +225,27 @@ class Echidna
             }
         }
         
+        return($ret);
+    }
+    private function _get_template($identifier)
+    {
+        $id = (int) $identifier;
+        if(is_string($identifier)) { $id = $this->uritoid($identifier); }
+        $type_id = $this->uritoid("http://www.w3.org/1999/02/22-rdf-syntax-ns#type");
+
+        $ret = array();
+        $query = "SELECT template FROM triples, templates WHERE o=templates.class AND s='" . $id . "' AND p='" . $type_id . "';";
+        $res = $this->db->query($query);
+        while($row = $res->fetch_assoc())
+        {
+            foreach(explode("\n", $row['template']) as $path)
+            {
+                if(in_array($path, $ret)) { continue; }
+                $ret[] = $path;
+            }
+        }
+        $res->free();
+
         return($ret);
     }
     
@@ -249,16 +273,17 @@ class Echidna
             $this->uri = $this->idtouri($this->id);
         }
         $res->free();
-
-        $config['template'] = array();
-        $query = "SELECT * FROM templates WHERE class='" . $this->db->escape_string($this->id) . "';";
+/*
+        $config['templates'] = array();
+        $query = "SELECT * FROM templates;";
         $res = $this->db->query($query);
         if($row = $res->fetch_assoc())
         {
-            $config['template'] = explode("\n", $row['template']);
+            $id = (int) $row['class'];
+            $config['templates'][$id] = explode("\n", $row['template']);
         }
         $res->free();
-        
+*/
         $this->config = $config;
     }
 }
