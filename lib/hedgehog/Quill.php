@@ -12,7 +12,7 @@ class Quill
 
     private function importFile($filename)
     {
-        $query = "DELETE FROM uris WHERE quill='" . $this->db->escape_string($this->id) . "';";
+        $query = "DELETE FROM triples WHERE quill='" . $this->db->escape_string($this->id) . "';";
         $this->db->query($query);
     
         $g = new Graphite();
@@ -132,6 +132,7 @@ class Quill
         $this->env = array();
         $this->env["HEDGEHOG_CONFIG_ARC2_PATH"] = $lib_path . "/arc2/ARC2.php";
         $this->env["HEDGEHOG_CONFIG_GRAPHITE_PATH"] = $lib_path . "/graphite/Graphite.php";
+        $this->env["HEDGEHOG_CONFIG_LIB_PATH"] = $lib_path;
         foreach($_SERVER as $k => $v)
         {
             if(is_string($v)) { $this->env[$k] = $v; }
