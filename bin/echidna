@@ -1,6 +1,21 @@
 #!/usr/bin/php -q
 <?php
 
+function get_types()
+{
+	$db_config_file = dirname(dirname(__FILE__)) . "/etc/database.json";
+	$db_config = json_decode(file_get_contents($db_config_file), true);
+	$db = new mysqli($db_config['host'], $db_config['user'], $db_config['password'], $db_config['database'], $db_config['port']);
+
+	$ret = array();
+	$query = "SELECT DISTINCT CONCAT(prefix.prefix, ':', uris.name) AS uri FROM templates, uris, prefix WHERE templates.class=uris.id AND uris.prefix=prefix.id";
+	$res = $db->query($query);
+	while($row = $res->fetch_assoc()) { $ret[] = $row['uri']; }
+	$res->free();
+
+	return($ret);
+}
+
 // Import classes
 
 $lib_dir = dirname(dirname(__FILE__)) . "/lib/hedgehog";
@@ -16,7 +31,10 @@ if($fh = opendir($lib_dir))
     }
 }
 
-foreach(array_splice($argv, 1) as $class)
+$types = array_splice($argv, 1);
+if(count($types) == 0) { $types = get_types(); }
+
+foreach($types as $class)
 {
     error_log($class);
     $echidna = new Echidna($class);
