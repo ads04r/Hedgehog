@@ -17,6 +17,8 @@ class Quill
     
         $g = new Graphite();
         $g->load($filename);
+        $insertsimplevalues = array();
+        $insertcomplexvalues = array();
         foreach($g->allSubjects() as $res)
         {
             $subject_uri = "" . $res;
@@ -49,16 +51,36 @@ class Quill
                     
                     if($object_id > 0)
                     {
-                        $query = "INSERT INTO triples (s, p, o, quill) VALUES ('" . $subject_id . "', '" . $predicate_id . "', '" . $object_id . "', '" . $this->db->escape_string($this->id) . "');";
+                        $insertsimplevalues[] = "('" . $subject_id . "', '" . $predicate_id . "', '" . $object_id . "', '" . $this->db->escape_string($this->id) . "')";
                     }
                     else
                     {
-                        $query = "INSERT INTO triples (s, p, o_text, o_type, quill) VALUES ('" . $subject_id . "', '" . $predicate_id . "', '" . $this->db->escape_string("" . $object) . "', '" . $object_type_id . "', '" . $this->db->escape_string($this->id) . "');";
+                        $insertcomplexvalues[] = "('" . $subject_id . "', '" . $predicate_id . "', '" . $this->db->escape_string("" . $object) . "', '" . $object_type_id . "', '" . $this->db->escape_string($this->id) . "')";
                     }
-                    
-                    $this->db->query($query);
                 }
             }
+            if(count($insertsimplevalues) > 5000)
+            {
+                $query = "INSERT INTO triples (s, p, o, quill) VALUES " . implode(",", $insertsimplevalues) . ";";
+                $this->db->query($query);
+                $insertsimplevalues = array();
+            }
+            if(count($insertcomplexvalues) > 5000)
+            {
+                $query = "INSERT INTO triples (s, p, o_text, o_type, quill) VALUES " . implode(",", $insertcomplexvalues) . ";";
+                $this->db->query($query);
+                $insertcomplexvalues = array();
+            }
+        }
+        if(count($insertsimplevalues) > 0)
+        {
+            $query = "INSERT INTO triples (s, p, o, quill) VALUES " . implode(",", $insertsimplevalues) . ";";
+            $this->db->query($query);
+        }
+        if(count($insertcomplexvalues) > 0)
+        {
+            $query = "INSERT INTO triples (s, p, o_text, o_type, quill) VALUES " . implode(",", $insertcomplexvalues) . ";";
+            $this->db->query($query);
         }
     }
     
@@ -108,6 +130,30 @@ class Quill
     }
     
     private function externalScript($command_line)
+    {
+        $descriptorspec = array(
+            0 => array("pipe", "r"), // stdin
+            1 => array("pipe", "w"), // stdout
+            2 => array("pipe", "w")  // stderr
+        );
+        $pipes = array();
+
+        $process = proc_open($command_line, $descriptorspec, $pipes, NULL, $this->env);
+        $stdout = stream_get_contents($pipes[1]);
+        fclose($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[2]);
+        $ret = proc_close($process);
+
+        $r = array();
+        $r['code'] = $ret;
+        $r['stdout'] = $stdout;
+        $r['stderr'] = $stderr;
+
+        return($r);
+    }
+
+    private function externalScriptBroken($command_line)
     {
 	$ret = 1;
 	$stdout = "";
