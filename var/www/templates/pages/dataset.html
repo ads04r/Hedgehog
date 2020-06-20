@@ -1,0 +1,37 @@
+<div class="card">
+
+    <div class="card-body">
+	
+	<h1>{{ @page_data['label'] }}</h1>
+	<p>{{ @page_data['comment'] }}</p>
+
+	<table class="table table-bordered table-striped">
+		<tr>
+			<td>Last Publish:&nbsp;</td>
+			<td>{{ date("l jS F, g:ia", strtotime(@page_data['last_publish'] . " UTC")) }}</td>
+		</tr>
+		<tr>
+			<td>Publish Schedule:&nbsp;</td>
+			<td>{{ @page_data['schedule'] }}</td>
+		</tr>
+		<tr>
+			<td>Triples:&nbsp;</td>
+			<td>{{ @page_data['stats']['triples'] }}</td>
+		</tr>
+		<tr>
+			<td>Unique Subjects:&nbsp;</td>
+			<td>{{ @page_data['stats']['subjects'] }}</td>
+		</tr>
+		<tr>
+			<td>Vocabularies:&nbsp;</td>
+			<td><repeat group="{{ @page_data['stats']['vocabularies'] }}" value="{{ @vocab }}">{{ @vocab }}<br></repeat></td>
+		</tr>
+		<tr>
+			<td>Classes:&nbsp;</td>
+			<td><repeat group="{{ @page_data['stats']['classes'] }}" value="{{ @class }}">{{ @class }}<br></repeat></td>
+		</tr>
+	</table>
+
+    </div>
+
+</div>
