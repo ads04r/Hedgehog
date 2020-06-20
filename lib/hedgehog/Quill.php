@@ -153,24 +153,6 @@ class Quill
         return($r);
     }
 
-    private function externalScriptBroken($command_line)
-    {
-	$ret = 1;
-	$stdout = "";
-	$stderr = "";
-
-	$out = array();
-	$retcode = 0;
-	exec($command_line . " 2> /dev/null", $out, $ret);
-	$stdout = implode("\n", $out);
-
-        return(array(
-            "code" => $ret,
-            "stdout" => $stdout,
-            "stderr" => $stderr
-        ));
-    }
-    
     function __construct($id)
     {
         include(dirname(dirname(dirname(__FILE__))) . "/var/www/init.php");
