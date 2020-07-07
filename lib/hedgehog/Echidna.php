@@ -106,6 +106,7 @@ class Echidna
             }
             foreach($triples as $triple)
             {
+
                 if((strlen($triple['o_text']) == 0) && (strlen($triple['o_type']) == 0))
                 {
                     $g->t($triple['s'], $triple['p'], $triple['o']);
@@ -162,7 +163,7 @@ class Echidna
             $item['o_text'] = "" . $row['o_text'];
             $item['o_type'] = "" . $row['o_type'];
             if(strlen($item['o']) > 0) { $item['o'] = $this->idtouri((int) $item['o']); }
-            if(strlen($item['o_type']) > 0) { $item['o_type'] = $this->idtouri((int) $item['o']); }
+            if(strlen($item['o_type']) > 0) { $item['o_type'] = $this->idtouri((int) $item['o_type']); }
             $ret[] = $item;
         }
         $res->free();
