@@ -55,6 +55,42 @@ $f3->route("GET /templates.html", function($f3)
         echo $template->render($f3->get('brand_file'));
 });
 
+$f3->route("GET /templates/@id.html", function($f3, $params)
+{
+        date_default_timezone_set("Europe/London");
+        $db = $f3->get('database');
+
+	$query = "SELECT prefix.prefix, prefix.uri, uris.name, templates.template FROM uris, prefix, templates WHERE class='" . $db->escape_string($params['id']) . "' and templates.class=uris.id and uris.prefix=prefix.id;";
+	$data = array();
+        $res = $db->query($query);
+        if($row = $res->fetch_assoc())
+        {
+            $data = $row;
+        }
+        $res->close();
+
+	$title = $data['uri'] . $data['name'];
+	if(strlen($data['prefix']) > 0) { $title = $data['prefix'] . ":" . $data['name']; }
+
+        $template = new Template();
+        $f3->set('page_title', $title);
+        $f3->set('page_class', "Class Templates");
+        $f3->set('page_template', "templates/pages/template.html");
+        $f3->set('page_data', $data);
+        echo $template->render($f3->get('brand_file'));
+});
+
+$f3->route("POST /templates/@id.html", function($f3, $params)
+{
+        $db = $f3->get('database');
+
+	$url = "/templates/" . $params['id'] . ".html";
+	$query = "UPDATE templates SET template='" . $db->escape_string($_POST['template']) . "' WHERE class='" . $db->escape_string($params['id']) . "';";
+	$db->query($query);
+
+	$f3->reroute($url);
+});
+
 $f3->route("GET /datasets/@id.html", function($f3, $params)
 {
         date_default_timezone_set("Europe/London");
@@ -84,6 +120,15 @@ $f3->route("GET /datasets/@id.html", function($f3, $params)
         while($row = $res->fetch_assoc())
         {
             $data['stats']['classes'][] = $row['uri'] . $row['name'];
+        }
+        $res->close();
+
+	$query = "select distinct prefix.uri, uris.name from triples, uris, prefix where quill='" . $db->escape_string($params['id']) . "' and triples.p=uris.id and uris.prefix=prefix.id order by uri, name";
+	$data['stats']['properties'] = array();
+        $res = $db->query($query);
+        while($row = $res->fetch_assoc())
+        {
+            $data['stats']['properties'][] = $row['uri'] . $row['name'];
         }
         $res->close();
 
