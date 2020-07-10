@@ -25,6 +25,15 @@ http://www.gnu.org/licenses/gpl-2.0.html
 General Documentation
 =====================
 
+Installation
+------------
+
+Hedgehog now comes with a nice web UI, as well as keeping its command-line
+heritage. To ensure this works, clone the repository into a directory
+(eg /usr/local/hedgehog) and ensure that Apache's htdocs root is the
+var/www directory beneath this. Also, add the bin directory to the PATH
+variable to be able to run the scripts from the command line from anywhere.
+
 How to run Hedgehog
 -------------------
 
