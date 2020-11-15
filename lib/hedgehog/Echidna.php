@@ -53,7 +53,7 @@ class Echidna
         if(array_key_exists($uri, $this->cache)) { return($this->cache[$uri]); }
 
         $ret = 0;
-        $query = "SELECT uris.id FROM uris, prefix WHERE uris.prefix=prefix.id AND (CONCAT(prefix.uri, uris.name)='" . $this->db->escape_string($uri) . "' OR CONCAT(prefix.prefix, ':', uris.name)='" . $this->db->escape_string($uri) . "');";
+        $query = "SELECT uris.id FROM uris, prefix WHERE uris.prefix=prefix.id AND BINARY (CONCAT(prefix.uri, uris.name)='" . $this->db->escape_string($uri) . "' OR BINARY CONCAT(prefix.prefix, ':', uris.name)='" . $this->db->escape_string($uri) . "');";
         $res = $this->db->query($query);
         if($row = $res->fetch_assoc())
         {
