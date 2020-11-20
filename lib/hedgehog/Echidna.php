@@ -117,8 +117,16 @@ class Echidna
             }
 
             if(!(file_exists($export_path))) { mkdir($export_path, 0755, true); }
+            $turtle = $g->serialize("Turtle");
+
+            if(file_exists($export_file))
+            {
+                $old_content = file_get_contents($export_file);
+                if(strcmp($old_content, $turtle) == 0) { continue; }
+            }
+
             $fp = fopen($export_file, "w");
-            fwrite($fp, $g->serialize("Turtle"));
+            fwrite($fp, $turtle);
             fclose($fp);
         }
         
