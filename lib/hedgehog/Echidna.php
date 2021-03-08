@@ -20,7 +20,7 @@ class Echidna
         $res = $this->db->query($query);
         while($row = $res->fetch_assoc())
         {
-            $ret[] = (int) $row['s'];            
+            $ret[] = (int) $row['s'];
         }
         $res->free();
 
@@ -274,7 +274,7 @@ class Echidna
 
         $this->errors = array();
         $this->id = 0;
-        $query = "SELECT uris.id FROM uris, prefix WHERE uris.prefix=prefix.id AND (CONCAT(prefix.uri, uris.name)='" . $this->db->escape_string($type_uri) . "' OR CONCAT(prefix.prefix, ':', uris.name)='" . $this->db->escape_string($type_uri) . "');";
+        $query = "SELECT uris.id FROM uris, prefix WHERE uris.prefix=prefix.id AND (BINARY CONCAT(prefix.uri, uris.name)='" . $this->db->escape_string($type_uri) . "' OR BINARY CONCAT(prefix.prefix, ':', uris.name)='" . $this->db->escape_string($type_uri) . "');";
         $res = $this->db->query($query);
         if($row = $res->fetch_assoc())
         {
