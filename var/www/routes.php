@@ -1,11 +1,185 @@
 <?php
 
+function splitCamelCase($input)
+{
+    return preg_split(
+        '/(^[^A-Z]+|[A-Z][^A-Z]+)/',
+        $input,
+        -1, /* no limit for replacement count */
+        PREG_SPLIT_NO_EMPTY /*don't return empty elements*/
+            | PREG_SPLIT_DELIM_CAPTURE /*don't strip anything from output array*/
+    );
+}
+
 $f3->route("GET /", function($f3)
 {
         date_default_timezone_set("Europe/London");
 
         $template = new Template();
         $f3->set('page_template', "templates/pages/dashboard.html");
+        echo $template->render($f3->get('brand_file'));
+});
+
+$f3->route("POST /settings.html", function($f3)
+{
+	$next_url = "/";
+	$data = $_POST;
+	if(array_key_exists("url", $data))
+	{
+		$next_url = $data['url'];
+		unset($data['url']);
+	}
+        $db = $f3->get('database');
+	if($db)
+	{
+		foreach($data as $k => $v)
+		{
+			$query = "INSERT INTO settings (`key`, `value`) values ('" . $db->escape_string($k) . "', '" . $db->escape_string($v) . "') ON DUPLICATE KEY UPDATE `value`='" . $db->escape_string($v) . "';";
+			$db->query($query);
+		}
+	}
+
+	$f3->reroute($next_url);
+});
+
+$f3->route("POST /vocabulary/@id.html", function($f3, $params)
+{
+	$data = $_POST;
+	$data['id'] = $params['id'];
+
+	if(array_key_exists("id", $data) && array_key_exists("vocab-description", $data) && array_key_exists("vocab-label", $data))
+	{
+
+	        $db = $f3->get('database');
+		if($db)
+		{
+			$query = "INSERT INTO vocabulary (uri, label, description) ";
+			$query .= "VALUES ('" . $db->escape_string($data['id']) . "', '" . $db->escape_string($data['vocab-label']) . "', '" . $db->escape_string($data['vocab-description']) . "') ";
+			$query .= "ON DUPLICATE KEY UPDATE label='" . $db->escape_string($data['vocab-label']) . "', description='" . $db->escape_string($data['vocab-description']) . "';";
+			$db->query($query);
+		}
+
+		$f3->reroute("/vocabulary.html");
+
+	} else {
+
+		$f3->error(404);
+
+	}
+});
+
+$f3->route("GET /vocabulary/@id.html", function($f3, $params)
+{
+        date_default_timezone_set("Europe/London");
+        $db = $f3->get('database');
+
+	$query = "SELECT uris.*, prefix.uri as prefix FROM uris, prefix WHERE uris.prefix=prefix.id AND uris.id='" . $db->escape_string($params['id']) . "';";
+	$data = array("name"=>$params['id']);
+        $res = $db->query($query);
+        if($row = $res->fetch_assoc())
+        {
+            $data = $row;
+            $data['uri'] = $data['prefix'] . $data['name'];
+        }
+        $res->close();
+
+	$query = "SELECT * FROM vocabulary WHERE uri='" . $db->escape_string($params['id']) . "';";
+        $res = $db->query($query);
+        if($row = $res->fetch_assoc())
+        {
+            $data['label'] = $row['label'];
+            $data['description'] = $row['description'];
+        }
+        $res->close();
+
+	if(!(array_key_exists("label", $data))) { $data['label'] = ucfirst(trim(implode(" ", splitCamelCase($data['name'])))); }
+
+	$title = $data['label'];
+
+        $template = new Template();
+        $f3->set('page_title', $title);
+	$f3->set('page_class', "Vocabulary");
+        $f3->set('page_template', "templates/pages/vocabularyitem.html");
+        $f3->set('page_data', $data);
+        echo $template->render($f3->get('brand_file'));
+});
+
+$f3->route("GET /vocabulary.html", function($f3)
+{
+        date_default_timezone_set("Europe/London");
+        $db = $f3->get('database');
+
+	$vocab = array();
+
+        $data = array("id" => "", "uri" => 0, "uris" => array(), "classes" => array(), "properties" => array());
+        if($db)
+        {
+            $res = $db->query("SELECT value FROM settings WHERE `key`='vocabulary_id';");
+            if($row = $res->fetch_assoc())
+            {
+                $data["id"] = $row['value'];
+            }
+            $res->close();
+
+            $res = $db->query("SELECT value FROM settings WHERE `key`='vocabulary_uri';");
+            if($row = $res->fetch_assoc())
+            {
+                $data["uri"] = $row['value'];
+            }
+            $res->close();
+
+            $res = $db->query("SELECT vocabulary.* FROM uris, vocabulary WHERE vocabulary.uri=uris.id AND prefix='" . $data['uri'] . "'");
+            while($row = $res->fetch_assoc())
+            {
+		$id = $row['uri'];
+		$vocab[$id] = $row;
+            }
+            $res->close();
+
+            $res = $db->query("SELECT id, prefix, uri FROM prefix WHERE prefix<>'';");
+            while($row = $res->fetch_assoc())
+            {
+                $data["uris"][] = $row;
+            }
+            $res->close();
+
+            $res = $db->query("SELECT DISTINCT uris.* FROM triples, uris WHERE (triples.s=uris.id OR triples.o=uris.id) AND uris.prefix='" . $data['uri'] . "' ORDER BY name ASC");
+            while($row = $res->fetch_assoc())
+            {
+		$id = $row['id'];
+		if(array_key_exists($id, $vocab))
+		{
+			$row['label'] = $vocab[$id]['label'];
+			$row['description'] = "" . $vocab[$id]['description'];
+		} else {
+			$row['label'] = trim(implode(" ", splitCamelCase($row['name'])));
+			$row['description'] = "";
+		}
+                $data["classes"][] = $row;
+            }
+            $res->close();
+
+            $res = $db->query("SELECT DISTINCT uris.* FROM triples, uris WHERE triples.p=uris.id AND uris.prefix='" . $data['uri'] . "' ORDER BY name ASC");
+            while($row = $res->fetch_assoc())
+            {
+		$id = $row['id'];
+		if(array_key_exists($id, $vocab))
+		{
+			$row['label'] = $vocab[$id]['label'];
+			$row['description'] = "" . $vocab[$id]['description'];
+		} else {
+			$row['label'] = ucfirst(trim(implode(" ", splitCamelCase($row['name']))));
+			$row['description'] = "";
+		}
+                $data["properties"][] = $row;
+            }
+            $res->close();
+        }
+
+        $template = new Template();
+        $f3->set('page_title', "Vocabulary");
+        $f3->set('page_template', "templates/pages/vocabulary.html");
+        $f3->set('page_data', $data);
         echo $template->render($f3->get('brand_file'));
 });
 
@@ -36,7 +210,7 @@ $f3->route("GET /templates.html", function($f3)
 {
         date_default_timezone_set("Europe/London");
         $db = $f3->get('database');
-        
+
         $data = array();
         if($db)
         {

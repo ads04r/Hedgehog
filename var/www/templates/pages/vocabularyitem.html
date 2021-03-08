@@ -1,0 +1,37 @@
+<form action="" method="POST">
+
+<div class="card">
+
+    <div class="card-body p-0">
+
+        <table class="table table-striped table-valign-top">
+	<thead>
+	<tr>
+		<th class="no-wrap">URI</th>
+		<th class="cell-stretch">{{ @page_data['uri'] }}</th>
+	</tr>
+	</thead>
+	<tbody>
+	<tr>
+		<td class="no-wrap">Label</td>
+		<td class="cell-stretch"><input class="form-control" type="text" name="vocab-label" value="{{ @page_data['label'] }}"></td>
+	</tr>
+	<tr>
+		<td class="no-wrap">Description</td>
+		<td class="cell-stretch">
+			<textarea class="form-control" rows="10" name="vocab-description">{{ @page_data['description'] }}</textarea><br>
+		</td>
+	</tr>
+
+	<tr>
+		<td></td>
+		<td class="cell-stretch" style="text-align: right;"><button class="btn btn-primary" type="submit">Save</button></td>
+	</tr>
+	</tbody>
+	</table>
+
+    </div>
+
+</div>
+
+</form>
