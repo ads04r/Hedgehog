@@ -2,15 +2,23 @@
 
 class Quill
 {
-    private $config;
-    private $db;
-    private $id;
-    private $env;
-    private $hopper_path;
+    protected $config;
+    protected $db;
+    protected $id;
+    protected $env;
+    protected $hopper_path;
     
     public $errors;
 
-    private function importFile($filename)
+    public function isValid()
+    {
+	if(!(array_key_exists("path", $this->config['quill']))) { $this->errors[] = "No path set for quill - does it exist?"; return false; }
+        $path = $this->config['quill']['path'];
+	if(!(file_exists($path))) { $this->errors[] = "Quill path not found."; return false; }
+        return true;
+    }
+
+    protected function importFile($filename)
     {
         $query = "DELETE FROM triples WHERE quill='" . $this->db->escape_string($this->id) . "';";
         $this->db->query($query);

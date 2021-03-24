@@ -1,0 +1,24 @@
+<form action="/settings.html" method="POST">
+<input type="hidden" name="url" value="/virtual.html"/>
+<div class="card">
+
+    <div class="card-body">
+	
+	<table class="table table-bordered table-striped">
+		<tr>
+			<td>Data&nbsp;Catalog:&nbsp;</td>
+			<td class="cell-stretch"><input class="form-control" type="text" name="vdataset_datacatalog" value="{{ htmlentities(@page_data['vdataset_datacatalog'], ENT_QUOTES) }}"/></td>
+		</tr>
+		<tr>
+			<td>Vocabulary:&nbsp;</td>
+			<td><input type="text" class="form-control" name="vdataset_vocabulary" value="{{ htmlentities(@page_data['vdataset_vocabulary'], ENT_QUOTES) }}"/></td>
+		</tr>
+		<tr>
+			<td colspan="2" style="text-align: right;"><input type="submit" value="Save" class="btn btn-primary"></td>
+		</tr>
+	</table>
+
+    </div>
+
+</div>
+</form>

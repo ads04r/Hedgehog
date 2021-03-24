@@ -19,7 +19,11 @@ if($fh = opendir($lib_dir))
 foreach(array_splice($argv, 1) as $quillid)
 {
     error_log($quillid);
-    $quill = new Quill($quillid);
-    $ret = $quill->publish();
+    $quill = new SpecialQuill($quillid);
+    $ret = 1;
+    if(!($quill->isValid())) {
+        $quill = new Quill($quillid);
+    }
+    if($quill->isValid()) { $ret = $quill->publish(); }
     if($ret > 0) { var_dump($quill->errors); exit(1); }
 }

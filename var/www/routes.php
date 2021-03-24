@@ -68,6 +68,29 @@ $f3->route("POST /vocabulary/@id.html", function($f3, $params)
 	}
 });
 
+$f3->route("GET /virtual.html", function($f3, $params)
+{
+	$data = array("vdataset_vocabulary" => "", "vdataset_datacatalog" => "");
+        $db = $f3->get('database');
+	if($db)
+	{
+		$query = "SELECT * FROM settings WHERE `key` LIKE 'vdataset_%';";
+		$res = $db->query($query);
+		while($row = $res->fetch_assoc())
+		{
+			$data[$row['key']] = $row['value'];
+		}
+		$res->close();
+	}
+
+        $template = new Template();
+        $f3->set('page_title', "Virtual Datasets");
+	$f3->set('page_class', "Settings");
+        $f3->set('page_template', "templates/pages/virtual.html");
+        $f3->set('page_data', $data);
+        echo $template->render($f3->get('brand_file'));
+});
+
 $f3->route("GET /vocabulary/@id.html", function($f3, $params)
 {
         date_default_timezone_set("Europe/London");
