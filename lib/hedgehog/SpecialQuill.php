@@ -5,6 +5,48 @@ include_once(dirname(__FILE__) . "/Quill.php");
 class SpecialQuill extends Quill
 {
     public $errors;
+    private $cache;
+
+    private function idtouri($id)
+    {
+        if(array_key_exists("_" . $id, $this->cache)) { return($this->cache["_" . $id]); }
+    
+        $ret = "";
+        $query = "SELECT CONCAT(prefix.uri, uris.name) AS uri FROM uris, prefix WHERE uris.prefix=prefix.id AND uris.id='" . ((int) $id) . "';";
+        $res = $this->db->query($query);
+        if($row = $res->fetch_assoc())
+        {
+            $ret = $row['uri'];
+        }
+        $res->free();
+
+        if(strlen($ret) > 0)
+        {
+            $this->cache["_" . $id] = $ret;
+            $this->cache[$ret] = $id;
+        }
+        return($ret);
+    }
+    
+    private function uritoid($uri)
+    {
+        if(array_key_exists($uri, $this->cache)) { return($this->cache[$uri]); }
+
+        $ret = 0;
+        $query = "SELECT uris.id FROM uris, prefix WHERE uris.prefix=prefix.id AND BINARY (CONCAT(prefix.uri, uris.name)='" . $this->db->escape_string($uri) . "' OR BINARY CONCAT(prefix.prefix, ':', uris.name)='" . $this->db->escape_string($uri) . "');";
+        $res = $this->db->query($query);
+        if($row = $res->fetch_assoc())
+        {
+            $ret = (int) $row['id'];
+        }
+        $res->free();
+
+        if($ret > 0)
+        {
+            $this->cache[$uri] = $ret;
+        }
+        return($ret);
+    }
 
     public function isValid()
     {
@@ -17,6 +59,7 @@ class SpecialQuill extends Quill
         include(dirname(dirname(dirname(__FILE__))) . "/var/www/init.php");
 
         $this->env = array();
+        $this->cache = array();
         $this->env["HEDGEHOG_CONFIG_ARC2_PATH"] = $lib_path . "/arc2/ARC2.php";
         $this->env["HEDGEHOG_CONFIG_GRAPHITE_PATH"] = $lib_path . "/graphite/Graphite.php";
         $this->env["HEDGEHOG_CONFIG_LIB_PATH"] = $lib_path;
@@ -61,6 +104,21 @@ class SpecialQuill extends Quill
         }
     }
     
+    function generateRangeDomain()
+    {
+        $range = $this->uritoid("http://www.w3.org/2000/01/rdf-schema#range");
+        $domain = $this->uritoid("http://www.w3.org/2000/01/rdf-schema#domain");
+        $type = $this->uritoid("http://www.w3.org/1999/02/22-rdf-syntax-ns#type");
+
+        if(($range == 0) || ($domain == 0)) { return; }
+
+        $query = "insert ignore into vocabulary_links (s, p, o) (select distinct ontology.id as s, '" . $range . "' as p, types.type as o from triples, (select uris.* from uris, prefix where prefix.prefix='flarp' and uris.prefix=prefix.id) as ontology, (select distinct uris.id as uri, types.id as type from triples, uris, uris as types where triples.p='" . $type . "' and uris.id=triples.s and types.id=triples.o) as types where triples.p=ontology.id and triples.o=types.uri)";
+	$this->db->query($query);
+
+        $query = "insert ignore into vocabulary_links (s, p, o) (select distinct ontology.id as s, '" . $domain . "' as p, types.type as o from triples, (select uris.* from uris, prefix where prefix.prefix='flarp' and uris.prefix=prefix.id) as ontology, (select distinct uris.id as uri, types.id as type from triples, uris, uris as types where triples.p='" . $type . "' and uris.id=triples.s and types.id=triples.o) as types where triples.p=ontology.id and triples.s=types.uri)";
+	$this->db->query($query);
+    }
+    
     function generateVocabulary()
     {
         $g = new Graphite();
@@ -81,8 +139,8 @@ class SpecialQuill extends Quill
 
         $g->t($uri, "rdf:type", "owl:Ontology");
         $g->t($uri, "rdfs:label", "Vocabulary");
-        $g->t($uri, "dcelements:title", "Vocabulary");
-        $g->t($uri, "dcelements:description", "Site vocabulary, described using the W3C RDF Schema and the Web Ontology Language.");
+        $g->t($uri, "dcelements:title", "Vocabulary", "literal");
+        $g->t($uri, "dcelements:description", "Site vocabulary, described using the W3C RDF Schema and the Web Ontology Language.", "literal");
 
         $query = "SELECT DISTINCT uris.* FROM triples, uris WHERE (triples.s=uris.id OR triples.o=uris.id) AND uris.prefix='" . $id . "' ORDER BY name ASC";
         $res = $this->db->query($query);
@@ -116,6 +174,14 @@ class SpecialQuill extends Quill
         }
         $res->free();
 
+        $query = "select distinct CONCAT(sprefix.uri, suris.name) as s, CONCAT(pprefix.uri, puris.name) as p, CONCAT(oprefix.uri, ouris.name) as o from (select vocabulary_links.* from vocabulary_links, triples, uris where triples.p=vocabulary_links.s and triples.p=uris.id and uris.prefix='" . $id . "') as vocabulary_links, uris as suris, uris as puris, uris as ouris, prefix as sprefix, prefix as pprefix, prefix as oprefix where suris.prefix=sprefix.id and ouris.prefix=oprefix.id and puris.prefix=pprefix.id and s=suris.id and p=puris.id and o=ouris.id order by s ASC";
+        $res = $this->db->query($query);
+        while($row = $res->fetch_assoc())
+        {
+            $g->t($row['s'], $row['p'], $row['o']);
+        }
+        $res->free();
+
         return($g->serialize("NTriples"));
     }
     
@@ -129,6 +195,7 @@ class SpecialQuill extends Quill
         chdir($hopper_path);
 
 	$import_file = $hopper_path . "/vocabulary.nt";
+        $this->generateRangeDomain();
         $vocabttl = $this->generateVocabulary();
 	$fp = fopen($import_file, "w");
 	fwrite($fp, $vocabttl);
