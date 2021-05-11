@@ -132,6 +132,15 @@ $f3->route("GET /vocabulary.html", function($f3)
         date_default_timezone_set("Europe/London");
         $db = $f3->get('database');
 
+	$vid = "vocabulary";
+	$query = "SELECT `value` FROM settings WHERE `key`='vdataset_vocabulary';";
+	$res = $db->query($query);
+	if($row = $res->fetch_assoc())
+	{
+		$vid = $row['value'];
+	}
+	$res->free();
+
 	$vocab = array();
 
         $data = array("id" => "", "uri" => 0, "uris" => array(), "classes" => array(), "properties" => array());
@@ -166,7 +175,7 @@ $f3->route("GET /vocabulary.html", function($f3)
             }
             $res->close();
 
-            $res = $db->query("SELECT DISTINCT uris.* FROM triples, uris WHERE (triples.s=uris.id OR triples.o=uris.id) AND uris.prefix='" . $data['uri'] . "' ORDER BY name ASC");
+            $res = $db->query("SELECT DISTINCT uris.* FROM triples, uris WHERE triples.quill<>'" . $db->escape_string($vid) . "' AND (triples.s=uris.id OR triples.o=uris.id) AND uris.prefix='" . $data['uri'] . "' ORDER BY name ASC");
             while($row = $res->fetch_assoc())
             {
 		$id = $row['id'];
@@ -182,7 +191,7 @@ $f3->route("GET /vocabulary.html", function($f3)
             }
             $res->close();
 
-            $res = $db->query("SELECT DISTINCT uris.* FROM triples, uris WHERE triples.p=uris.id AND uris.prefix='" . $data['uri'] . "' ORDER BY name ASC");
+            $res = $db->query("SELECT DISTINCT uris.* FROM triples, uris WHERE triples.quill<>'" . $db->escape_string($vid) . "' AND triples.p=uris.id AND uris.prefix='" . $data['uri'] . "' ORDER BY name ASC");
             while($row = $res->fetch_assoc())
             {
 		$id = $row['id'];
