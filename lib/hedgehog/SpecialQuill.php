@@ -182,7 +182,7 @@ class SpecialQuill extends Quill
         }
         $res->free();
 
-        return($g->serialize("NTriples"));
+        return($g);
     }
     
     function publish($force=false)
@@ -196,9 +196,15 @@ class SpecialQuill extends Quill
 
 	$import_file = $hopper_path . "/vocabulary.nt";
         $this->generateRangeDomain();
-        $vocabttl = $this->generateVocabulary();
+        $vocab = $this->generateVocabulary();
 	$fp = fopen($import_file, "w");
-	fwrite($fp, $vocabttl);
+	fwrite($fp, $vocab->serialize("NTriples"));
+	fclose($fp);
+	$fp = fopen($hopper_path . "/vocabulary.ttl", "w");
+	fwrite($fp, $vocab->serialize("Turtle"));
+	fclose($fp);
+	$fp = fopen($hopper_path . "/vocabulary.rdf", "w");
+	fwrite($fp, $vocab->serialize("RDFXML"));
 	fclose($fp);
 
         if(count($this->errors) > 0) { return(count($this->errors)); } // Exit here if there are issues
