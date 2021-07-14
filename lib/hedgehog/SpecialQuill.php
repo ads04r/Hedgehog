@@ -142,7 +142,7 @@ class SpecialQuill extends Quill
         $g->t($uri, "dcelements:title", "Vocabulary", "literal");
         $g->t($uri, "dcelements:description", "Site vocabulary, described using the W3C RDF Schema and the Web Ontology Language.", "literal");
 
-        $query = "SELECT DISTINCT uris.* FROM triples, uris WHERE (triples.s=uris.id OR triples.o=uris.id) AND uris.prefix='" . $id . "' ORDER BY name ASC";
+        $query = "SELECT DISTINCT uris.* FROM triples, uris WHERE triples.quill<>'" . $this->db->escape_string($this->id) . "' AND (triples.s=uris.id OR triples.o=uris.id) AND uris.prefix='" . $id . "' ORDER BY name ASC";
         $res = $this->db->query($query);
         while($row = $res->fetch_assoc())
         {
@@ -153,7 +153,7 @@ class SpecialQuill extends Quill
         }
         $res->free();
 
-        $query = "SELECT DISTINCT uris.* FROM triples, uris WHERE triples.p=uris.id AND uris.prefix='" . $id . "' ORDER BY name ASC";
+        $query = "SELECT DISTINCT uris.* FROM triples, uris WHERE triples.quill<>'" . $this->db->escape_string($this->id) . "' AND triples.p=uris.id AND uris.prefix='" . $id . "' ORDER BY name ASC";
         $res = $this->db->query($query);
         while($row = $res->fetch_assoc())
         {
