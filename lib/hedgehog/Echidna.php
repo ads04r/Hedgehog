@@ -112,6 +112,7 @@ class Echidna
                     $g->t($triple['s'], $triple['p'], $triple['o']);
                 }
                 else {
+                    if(strlen($triple['o_type']) == 0) { $triple['o_type'] = 'literal'; }
                     $g->t($triple['s'], $triple['p'], $triple['o_text'], $triple['o_type']);
                 }
             }
