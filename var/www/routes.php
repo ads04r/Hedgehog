@@ -175,26 +175,12 @@ $f3->route("GET /vocabulary.html", function($f3)
             }
             $res->close();
 
-            $res = $db->query("SELECT DISTINCT uris.* FROM triples, uris WHERE triples.quill<>'" . $db->escape_string($vid) . "' AND (triples.s=uris.id OR triples.o=uris.id) AND uris.prefix='" . $data['uri'] . "' ORDER BY name ASC");
-            while($row = $res->fetch_assoc())
-            {
-		$id = $row['id'];
-		if(array_key_exists($id, $vocab))
-		{
-			$row['label'] = $vocab[$id]['label'];
-			$row['description'] = "" . $vocab[$id]['description'];
-		} else {
-			$row['label'] = trim(implode(" ", splitCamelCase($row['name'])));
-			$row['description'] = "";
-		}
-                $data["classes"][] = $row;
-            }
-            $res->close();
-
+            $property_ids = array();
             $res = $db->query("SELECT DISTINCT uris.* FROM triples, uris WHERE triples.quill<>'" . $db->escape_string($vid) . "' AND triples.p=uris.id AND uris.prefix='" . $data['uri'] . "' ORDER BY name ASC");
             while($row = $res->fetch_assoc())
             {
 		$id = $row['id'];
+                if(!(in_array($id, $property_ids))) { $property_ids[] = $id; }
 		if(array_key_exists($id, $vocab))
 		{
 			$row['label'] = $vocab[$id]['label'];
@@ -204,6 +190,23 @@ $f3->route("GET /vocabulary.html", function($f3)
 			$row['description'] = "";
 		}
                 $data["properties"][] = $row;
+            }
+            $res->close();
+
+            $res = $db->query("SELECT DISTINCT uris.* FROM triples, uris WHERE triples.quill<>'" . $db->escape_string($vid) . "' AND (triples.s=uris.id OR triples.o=uris.id) AND uris.prefix='" . $data['uri'] . "' ORDER BY name ASC");
+            while($row = $res->fetch_assoc())
+            {
+		$id = $row['id'];
+                if(in_array($id, $property_ids)) { continue; }
+		if(array_key_exists($id, $vocab))
+		{
+			$row['label'] = $vocab[$id]['label'];
+			$row['description'] = "" . $vocab[$id]['description'];
+		} else {
+			$row['label'] = trim(implode(" ", splitCamelCase($row['name'])));
+			$row['description'] = "";
+		}
+                $data["classes"][] = $row;
             }
             $res->close();
         }
