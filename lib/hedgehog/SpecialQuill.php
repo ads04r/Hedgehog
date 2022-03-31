@@ -118,6 +118,100 @@ class SpecialQuill extends Quill
         $query = "insert ignore into vocabulary_links (s, p, o) (select distinct ontology.id as s, '" . $domain . "' as p, types.type as o from triples, (select uris.* from uris, prefix where prefix.prefix='flarp' and uris.prefix=prefix.id) as ontology, (select distinct uris.id as uri, types.id as type from triples, uris, uris as types where triples.p='" . $type . "' and uris.id=triples.s and types.id=triples.o) as types where triples.p=ontology.id and triples.s=types.uri)";
 	$this->db->query($query);
     }
+
+    function generateCatalog()
+    {
+	$config = $this->config;
+	$g = new Graphite();
+
+        $quills = array();
+        $query = "SELECT * FROM quills;";
+        $res = $this->db->query($query);
+        while($row = $res->fetch_assoc())
+        {
+		$quills[] = $row;
+        }
+        $res->free();
+
+	foreach($config['namespaces']['namespaces'] as $ns)
+	{
+		$g->ns($ns['prefix'], $ns['uri']);
+	}
+
+	foreach($quills as $quill)
+	{
+		$data_file = $quill['path'] . "/publish.json";
+		if(!(file_exists($data_file))) { continue; }
+		$data = json_decode(file_get_contents($data_file), true);
+		if(!(is_array($data))) { continue; }
+		if(!(array_key_exists("properties", $data))) { continue; }
+		$properties = $data['properties'];
+
+		$uri = "";
+		$uri = $this->idtouri($quill['uri']);
+		if(strlen($uri) == 0)
+		{
+			if(array_key_exists("accessurl", $properties))
+			{
+				if(is_array($properties['accessurl']))
+				{
+					if(count($properties['accessurl']) > 0)
+					{
+						$accessurl = $properties['accessurl'][0];
+						$uri = preg_replace("#/" . $quill['id'] . "/.*$#", "/" . $quill['id'], $accessurl);
+					}
+				}
+			}
+			if(array_key_exists("uri", $properties)) { $uri = $properties['uri']; }
+			if(strlen($uri) > 0)
+			{
+				$quill['uri'] = $this->uritoid($uri);
+				$query = "UPDATE IGNORE quills SET uri='" . $quill['uri'] . "' WHERE id='" . $this->db->escape_string($quill['id']) . "';";
+				$this->db->query($query);
+			}
+		}
+
+		if(strlen($uri) == 0) { continue; }
+
+		$g->t($uri, "rdf:type", "void:Dataset");
+		if(array_key_exists("title", $properties)) { $g->t($uri, "dcterms:title", $properties['title'], "literal"); }
+		if(array_key_exists("title", $properties)) { $g->t($uri, "rdfs:label", $properties['title'], "literal"); }
+		if(array_key_exists("description", $properties)) { $g->t($uri, "dcterms:description", $properties['description'], "literal"); }
+
+		if(array_key_exists("stars", $properties)) { $g->t($uri, "dcterms:conformsTo", "http://purl.org/openorg/opendata-" . $properties['stars'] . "-star"); }
+
+		if(array_key_exists("accessurl", $properties))
+		{
+			$au = array($properties['accessurl']);
+			if(is_array($properties['accessurl'])) { $au = $properties['accessurl']; }
+			foreach($au as $aui)
+			{
+				$g->t($uri, "http://www.w3.org/ns/dcat#accessURL", $aui);
+				$g->t($aui, "rdf:type", "http://www.w3.org/ns/dcat#Download");
+			}
+		}
+		if(array_key_exists("license", $properties))
+		{
+			$au = array($properties['license']);
+			if(is_array($properties['license'])) { $au = $properties['license']; }
+			foreach($au as $aui)
+			{
+				$g->t($uri, "dcterms:license", $aui);
+			}
+		}
+		if(array_key_exists("dump", $properties))
+		{
+			$au = array($properties['dump']);
+			if(is_array($properties['dump'])) { $au = $properties['dump']; }
+			foreach($au as $aui)
+			{
+				$g->t($uri, "void:dataDump", $aui);
+			}
+		}
+	}
+
+	return($g);
+    }
     
     function generateVocabulary()
     {
@@ -184,9 +278,13 @@ class SpecialQuill extends Quill
 
         return($g);
     }
-    
+
     function publish($force=false)
     {
+        $config = $this->config;
+	$id = $config['quill']['id'];
+	$type = $config['quill']['type'];
+
         $hopper_path = $this->hopper_path;
         if(!(file_exists($hopper_path)))
         {
@@ -194,17 +292,24 @@ class SpecialQuill extends Quill
         }
         chdir($hopper_path);
 
-	$import_file = $hopper_path . "/vocabulary.nt";
-        $this->generateRangeDomain();
-        $vocab = $this->generateVocabulary();
+	$import_file = $hopper_path . "/" . $id . ".nt";
+	if(strcmp($type, "vdataset_vocabulary") == 0)
+	{
+	        $this->generateRangeDomain();
+	        $g = $this->generateVocabulary();
+	}
+	if(strcmp($type, "vdataset_datacatalog") == 0)
+	{
+		$g = $this->generateCatalog();
+	}
 	$fp = fopen($import_file, "w");
-	fwrite($fp, $vocab->serialize("NTriples"));
+	fwrite($fp, $g->serialize("NTriples"));
 	fclose($fp);
-	$fp = fopen($hopper_path . "/vocabulary.ttl", "w");
-	fwrite($fp, $vocab->serialize("Turtle"));
+	$fp = fopen($hopper_path . "/" . $id . ".ttl", "w");
+	fwrite($fp, $g->serialize("Turtle"));
 	fclose($fp);
-	$fp = fopen($hopper_path . "/vocabulary.rdf", "w");
-	fwrite($fp, $vocab->serialize("RDFXML"));
+	$fp = fopen($hopper_path . "/" . $id . ".rdf", "w");
+	fwrite($fp, $g->serialize("RDFXML"));
 	fclose($fp);
 
         if(count($this->errors) > 0) { return(count($this->errors)); } // Exit here if there are issues
