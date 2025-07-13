@@ -1,8 +1,12 @@
 #!/usr/bin/python3
 
-import argparse
+import argparse, pathlib, os
+
 
 def main():
+
+	settings_path = os.path.join(pathlib.Path.home(), '.config', 'hedgehog')
+	os.makedirs(settings_path, exist_ok=True)
 
 	parser = argparse.ArgumentParser(prog ='hedgehog', description ='Hedgehog RDF Publisher')
 	parser.add_argument('operation')
