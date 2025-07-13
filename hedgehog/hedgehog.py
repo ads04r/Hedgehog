@@ -1,21 +1,12 @@
-#!/usr/bin/python3
+import pathlib, os
 
-import argparse, pathlib, os
+class Hedgehog():
 
+	def __init__(self):
 
-def main():
+		settings_path = os.path.join(pathlib.Path.home(), '.config', 'hedgehog')
+		quills_path = os.path.join(settings_path, 'quills')
+		settings_file = os.path.join(settings_path, 'config.json')
+		os.makedirs(settings_path, exist_ok=True)
+		os.makedirs(quills_path, exist_ok=True)
 
-	settings_path = os.path.join(pathlib.Path.home(), '.config', 'hedgehog')
-	os.makedirs(settings_path, exist_ok=True)
-
-	parser = argparse.ArgumentParser(prog ='hedgehog', description ='Hedgehog RDF Publisher')
-	parser.add_argument('operation')
-	parser.add_argument('quills', nargs='*')
-
-	args = parser.parse_args()
-
-	print(args.operation)
-	print(args.quills)
-
-if __name__ == '__main__':
-	main()
