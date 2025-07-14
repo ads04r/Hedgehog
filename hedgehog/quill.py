@@ -39,7 +39,7 @@ class Quill():
 			raise QuillPathNotFoundException()
 		self.settings = {}
 		if isinstance(core_settings, dict):
-			self.settings = self.core_settings.copy()
+			self.settings = core_settings.copy()
 		with open(self.settings_file) as fp:
 			settings_data = json.load(fp)
 		if not isinstance(settings_data, dict):
