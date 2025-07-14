@@ -1,5 +1,5 @@
 from rdflib import Graph
-import os, json, tempfile, shutil, subprocess, hashlib
+import os, json, tempfile, shutil, subprocess, hashlib, requests
 
 class QuillPathNotFoundException(Exception):
 	pass
@@ -46,20 +46,38 @@ class Quill():
 			raise InvalidQuillException()
 		for k, v in settings_data.items():
 			self.settings[k] = v
+		if not 'downloads' in self.settings:
+			self.settings['downloads'] = []
+		if not 'tools' in self.settings:
+			self.settings['tools'] = []
+		if not 'files' in self.settings:
+			self.settings['files'] = []
+
 		if not 'commands' in self.settings:
 			raise QuillCommandsMissing()
 		shutil.copytree(self.source_path, self.hopper.name, dirs_exist_ok=True)
 		if len(self.missing_files()) > 0:
 			raise QuillRequiredFileMissing()
-		if 'prepare' in self.settings['commands']:
-			if len(self.settings['commands']['prepare']) == 0:
-				self.prepared = True
-		else:
+		if not 'prepare' in self.settings['commands']:
+			self.settings['commands']['prepare'] = []
+		if len(self.settings['commands']['prepare']) + len(self.settings['downloads']) + len(self.settings['tools']) + len(self.settings['files']) == 0:
 			self.prepared = True
+
+	def download(self, url, filename):
+		user_agent = "Hedgehog/3.0 (https://github.com/ads04r/Hedgehog)"
+		save_path = os.path.join(self.hopper.name, filename)
+		with requests.get(url, stream=True, headers={'User-Agent': user_agent}) as req:
+			req.raise_for_status()
+			with open(save_path, 'wb') as fp:
+				for chunk in req.iter_content(chunk_size=2048):
+					fp.write(chunk)
+		return os.path.exists(save_path)
 
 	def prepare(self):
 		if self.prepared:
 			return
+		for dl in self.settings['downloads']:
+			self.download(dl['download'], dl['localfile'])
 		for cmd in self.settings['commands']['prepare']:
 			try:
 				ret = subprocess.run(cmd, capture_output=True, shell=True, cwd=self.hopper.name, check=True)
@@ -100,6 +118,7 @@ class Quill():
 				self.stderr.append(stderr)
 		import_file = os.path.join(self.hopper.name, self.settings['properties']['import_file'])
 		if not os.path.exists(import_file):
+			print(import_file)
 			raise QuillHasNoImportFile
 
 		g = Graph()
