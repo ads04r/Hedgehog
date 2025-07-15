@@ -1,5 +1,6 @@
 import pathlib, os, json, datetime
 from quill import Quill
+from tqdm import tqdm
 from exporters import VirtuosoTriplestore
 
 class Hedgehog():
@@ -20,12 +21,15 @@ class Hedgehog():
 			self.settings['tools_dir'] = os.path.join(self.settings_path, 'tools')
 		if not 'incoming_dir' in self.settings:
 			self.settings['incoming_dir'] = os.path.join(self.settings_path, 'incoming')
+		if not 'hashes_dir' in self.settings:
+			self.settings['hashes_dir'] = os.path.join(self.settings_path, 'hashes')
 		if not 'publish' in self.settings:
 			self.settings['publish'] = []
 
 		os.makedirs(self.settings_path, exist_ok=True)
 		os.makedirs(self.settings['quills_dir'], exist_ok=True)
 		os.makedirs(self.settings['tools_dir'], exist_ok=True)
+		os.makedirs(self.settings['hashes_dir'], exist_ok=True)
 		os.makedirs(self.settings['incoming_dir'], exist_ok=True)
 
 	def save_config(self):
@@ -59,9 +63,31 @@ class Hedgehog():
 		if os.path.exists(quill_zip_path):
 			return Quill(source_path=quill_zip_path, core_settings=self.settings)
 
-	def publish(self, id):
+	def quill_changed(self, id, hashes):
+
+		hash_file = os.path.join(self.settings['hashes_dir'], id + '.json')
+		if not os.path.exists(hash_file):
+			return True
+		with open(hash_file, 'r') as fp:
+			last_hashes = json.load(fp)
+		if len(hashes) != len(last_hashes):
+			return True
+		for k, v in hashes.items():
+			if not k in last_hashes:
+				return True
+			if last_hashes[k] != v:
+				return True
+		return False
+
+	def store_hashes(self, id, hashes):
+		hash_file = os.path.join(self.settings['hashes_dir'], id + '.json')
+		with open(hash_file, 'w') as fp:
+			fp.write(json.dumps(hashes))
+
+	def publish(self, id, force=False):
 
 		quill = self.get_quill(id)
+		quill.progress = tqdm(desc=id, total=quill.command_count, leave=False, colour='green', bar_format='| {desc} | {bar} | {percentage:3.0f}% |')
 
 		if not 'exports' in quill.settings:
 			quill.settings['exports'] = []
@@ -69,6 +95,13 @@ class Hedgehog():
 			quill.settings['exports'] = [[id + '.rdf', 'pretty-xml'], [id + '.ttl', 'turtle'], [id + '.json', 'json-ld']]
 
 		quill.prepare()
+		hashes = quill.hashes()
+		if quill.settings['check_hashes']:
+			if not force:
+				if not self.quill_changed(id, hashes):
+					return
+
+		self.store_hashes(id, hashes)
 		g = quill.run()
 		ds = datetime.datetime.now().strftime("%Y-%m-%d")
 

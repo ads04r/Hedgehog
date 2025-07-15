@@ -1,5 +1,5 @@
 from rdflib import Graph
-import os, json, tempfile, shutil, subprocess, hashlib, requests
+import os, json, tempfile, shutil, subprocess, hashlib, requests, sys
 
 class QuillPathNotFoundException(Exception):
 	pass
@@ -74,6 +74,8 @@ class Quill():
 			self.settings['environment'] = {}
 		if not 'exports' in self.settings:
 			self.settings['exports'] = []
+		if not 'check_hashes' in self.settings:
+			self.settings['check_hashes'] = True
 
 		if len(self.settings['incoming']) > 0:
 			if not 'incoming_dir' in self.settings:
@@ -89,8 +91,13 @@ class Quill():
 			raise QuillRequiredFileMissing()
 		if not 'prepare' in self.settings['commands']:
 			self.settings['commands']['prepare'] = []
-		if len(self.settings['commands']['prepare']) + len(self.settings['incoming']) + len(self.settings['downloads']) + len(self.settings['tools']) + len(self.settings['files']) == 0:
+		if not 'import' in self.settings['commands']:
+			self.settings['commands']['import'] = []
+
+		self.prepare_command_count = len(self.settings['commands']['prepare']) + len(self.settings['incoming']) + len(self.settings['downloads']) + len(self.settings['tools'])
+		if self.prepare_command_count + len(self.settings['files']) == 0:
 			self.prepared = True
+		self.command_count = self.prepare_command_count + len(self.settings['commands']['import'])
 
 	def download(self, url, filename):
 		user_agent = self.settings['system_name'] + "/" + str(self.settings['system_version']) + " (https://github.com/ads04r/Hedgehog)"
@@ -109,26 +116,36 @@ class Quill():
 			if f.endswith('.private'):
 				continue
 			src = os.path.join(self.hopper.name, f)
+			if os.path.isdir(src):
+				continue
 			dst = os.path.join(path, f)
 			shutil.copy2(src, dst)
 
 	def prepare(self):
 		if self.prepared:
+			if self.progress:
+				self.progress.update(self.prepare_command_count)
 			return
 		for dl in self.settings['downloads']:
 			self.download(dl['download'], dl['localfile'])
+			if self.progress:
+				self.progress.update()
 		for tool in self.settings['tools']:
 			tool_file = os.path.join(self.settings['tools_dir'], tool)
 			if os.path.exists(tool_file):
 				shutil.copy2(tool_file, os.path.join(self.hopper.name, tool))
 			else:
 				raise ToolNotFound(tool)
+			if self.progress:
+				self.progress.update()
 		for file in self.settings['incoming']:
 			incoming_file = os.path.join(self.settings['incoming_dir'], file)
 			if os.path.exists(incoming_file):
 				shutil.copy2(incoming_file, os.path.join(self.hopper.name, file))
 			else:
 				raise IncomingFileNotFound(file)
+			if self.progress:
+				self.progress.update()
 		env = os.environ.copy()
 		for k, v in self.settings['environment'].items():
 			env[k] = v
@@ -144,7 +161,10 @@ class Quill():
 				self.stdout.append(stdout)
 			if len(stderr) > 0:
 				self.stderr.append(stderr)
+			if self.progress:
+				self.progress.update()
 		self.prepared = True
+
 		return self.stdout
 
 	def run(self):
@@ -173,11 +193,15 @@ class Quill():
 				self.stdout.append(stdout)
 			if len(stderr) > 0:
 				self.stderr.append(stderr)
+			if self.progress:
+				self.progress.update()
 		import_file = os.path.join(self.hopper.name, self.settings['properties']['import_file'])
 		if not os.path.exists(import_file):
 			print(import_file)
 			raise QuillHasNoImportFile
 
+		if self.progress:
+			self.progress.refresh()
 		g = Graph()
 		g.parse(import_file)
 		self.result = g
@@ -195,7 +219,11 @@ class Quill():
 			raise QuillNotPrepared()
 		ret = {}
 		for f in os.listdir(self.hopper.name):
+			if f.startswith('.'):
+				continue
 			f_path = os.path.join(self.hopper.name, f)
+			if os.path.isdir(f_path):
+				continue
 			with open(f_path, 'rb', buffering=0) as fp:
 				ret[f] = hashlib.file_digest(fp, 'sha1').hexdigest()
 		return ret
