@@ -22,9 +22,7 @@ def main():
 
 		for quill in args.quills:
 			print(quill)
-			q = hh.get_quill(quill)
-			q.prepare()
-			q.run()
+			hh.publish(quill)
 
 if __name__ == '__main__':
 	main()
