@@ -1,5 +1,6 @@
-from rdflib import Graph
-import os, json, tempfile, shutil, subprocess, hashlib, requests, sys
+from rdflib import Graph, URIRef, Literal
+from rdflib.namespace import FOAF, RDF, DC, DCTERMS, XSD
+import os, json, tempfile, shutil, subprocess, hashlib, requests, sys, datetime, pytz
 
 class QuillPathNotFoundException(Exception):
 	pass
@@ -36,6 +37,15 @@ class IncomingFileNotFound(Exception):
 
 class Quill():
 
+	@property
+	def uri(self):
+		if 'uri' in self.settings:
+			return self.settings['uri']
+		return self.settings['rdf_base'] + os.path.split(self.source_path)[1]
+
+	def __str__(self):
+		return self.uri
+
 	def __init__(self, source_path, core_settings=None):
 
 		self.source_path = source_path
@@ -46,6 +56,8 @@ class Quill():
 		self.stderr = []
 		self.progress = None
 		self.result = None
+
+		self.start_time = pytz.utc.localize(datetime.datetime.utcnow())
 
 		if not os.path.exists(self.settings_file):
 			raise QuillPathNotFoundException()
@@ -203,7 +215,16 @@ class Quill():
 		if self.progress:
 			self.progress.refresh()
 		g = Graph()
+		g.bind('prov', URIRef("http://www.w3.org/ns/prov#"))
 		g.parse(import_file)
+
+		self.end_time = pytz.utc.localize(datetime.datetime.utcnow())
+
+		quill_ref = URIRef(self.uri)
+		g.add((quill_ref, DC.date, Literal(self.end_time.strftime("%Y-%m-%d %H:%M:%S %z"), datatype=XSD.dateTime)))
+
+		# prov and other metadata goes here
+
 		self.result = g
 
 		for export in self.settings['exports']:

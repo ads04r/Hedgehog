@@ -3,6 +3,9 @@ from .quill import Quill
 from tqdm import tqdm
 from .exporters import VirtuosoTriplestore
 
+class MissingHedgehogConfigItem(Exception):
+	pass
+
 class Hedgehog():
 
 	def __init__(self):
@@ -14,6 +17,9 @@ class Hedgehog():
 		if os.path.exists(self.settings_file):
 			with open(self.settings_file, 'r') as fp:
 				self.settings = json.load(fp)
+
+		if not 'rdf_base' in self.settings:
+			raise MissingHedgehogConfigItem('rdf_base')
 
 		if not 'quills_dir' in self.settings:
 			self.settings['quills_dir'] = os.path.join(self.settings_path, 'quills')
