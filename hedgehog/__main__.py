@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
-from hedgehog import Hedgehog
-from quill import Quill
+from .hedgehog import Hedgehog
+from .quill import Quill
 import argparse
 
 def main():
@@ -9,7 +9,8 @@ def main():
 	parser = argparse.ArgumentParser(prog ='hedgehog', description ='Hedgehog RDF Publisher')
 	parser.add_argument('operation', choices=['publish', 'list'], help='the operation Hedgehog is to perform')
 	parser.add_argument('quills', nargs='*', help='the id of one or more quills')
-	parser.add_argument('-f', '--force', action='store_true', help='force a republish of the specified quills, even if hash checking is turned on and nothing has changed.')
+	parser.add_argument('-f', '--force', action='store_true', help='force a republish of the specified quills, even if hash checking is turned on and nothing has changed')
+	parser.add_argument('-q', '--quiet', action='store_true', help='don\'t output anything to the console during publishing')
 
 	args = parser.parse_args()
 	hh = Hedgehog()
@@ -22,7 +23,7 @@ def main():
 	if args.operation == 'publish':
 
 		for quill in args.quills:
-			hh.publish(quill, force=args.force)
+			hh.publish(quill, force=args.force, quiet=args.quiet)
 
 if __name__ == '__main__':
 	main()

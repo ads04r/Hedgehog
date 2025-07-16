@@ -1,7 +1,7 @@
 import pathlib, os, json, datetime
-from quill import Quill
+from .quill import Quill
 from tqdm import tqdm
-from exporters import VirtuosoTriplestore
+from .exporters import VirtuosoTriplestore
 
 class Hedgehog():
 
@@ -84,10 +84,11 @@ class Hedgehog():
 		with open(hash_file, 'w') as fp:
 			fp.write(json.dumps(hashes))
 
-	def publish(self, id, force=False):
+	def publish(self, id, force=False, quiet=False):
 
 		quill = self.get_quill(id)
-		quill.progress = tqdm(desc=id, total=quill.command_count, leave=False, colour='green', bar_format='| {desc} | {bar} | {percentage:3.0f}% |')
+		if not quiet:
+			quill.progress = tqdm(desc=id, total=quill.command_count, leave=False, colour='green', bar_format='| {desc} | {bar} | {percentage:3.0f}% |')
 
 		if not 'exports' in quill.settings:
 			quill.settings['exports'] = []
