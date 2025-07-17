@@ -6,6 +6,9 @@ from .exporters import VirtuosoTriplestore
 class MissingHedgehogConfigItem(Exception):
 	pass
 
+class HedgehogQuillNotFound(Exception):
+	pass
+
 class Hedgehog():
 
 	def __init__(self):
@@ -18,9 +21,6 @@ class Hedgehog():
 			with open(self.settings_file, 'r') as fp:
 				self.settings = json.load(fp)
 
-		if not 'rdf_base' in self.settings:
-			raise MissingHedgehogConfigItem('rdf_base')
-
 		if not 'quills_dir' in self.settings:
 			self.settings['quills_dir'] = os.path.join(self.settings_path, 'quills')
 		if not 'tools_dir' in self.settings:
@@ -32,16 +32,21 @@ class Hedgehog():
 		if not 'publish' in self.settings:
 			self.settings['publish'] = []
 
+		if not 'rdf_base' in self.settings:
+			self.settings['rdf_base'] = "file:" + os.path.join(self.settings_path, 'dumps') + "/"
+
 		os.makedirs(self.settings_path, exist_ok=True)
 		os.makedirs(self.settings['quills_dir'], exist_ok=True)
 		os.makedirs(self.settings['tools_dir'], exist_ok=True)
 		os.makedirs(self.settings['hashes_dir'], exist_ok=True)
 		os.makedirs(self.settings['incoming_dir'], exist_ok=True)
 
+		self.save_config()
+
 	def save_config(self):
 
 		with open(self.settings_file, 'w') as fp:
-			fp.write(json.dumps(self.settings))
+			fp.write(json.dumps(self.settings, indent=4))
 
 	def list_quills(self):
 
@@ -68,6 +73,8 @@ class Hedgehog():
 
 		if os.path.exists(quill_zip_path):
 			return Quill(source_path=quill_zip_path, core_settings=self.settings)
+
+		raise HedgehogQuillNotFound(id)
 
 	def quill_changed(self, id, hashes):
 
