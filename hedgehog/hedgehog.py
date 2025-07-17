@@ -31,6 +31,8 @@ class Hedgehog():
 			self.settings['hashes_dir'] = os.path.join(self.settings_path, 'hashes')
 		if not 'publish' in self.settings:
 			self.settings['publish'] = []
+		if not 'namespaces' in self.settings:
+			self.settings['namespaces'] = {}
 
 		if not 'rdf_base' in self.settings:
 			self.settings['rdf_base'] = "file:" + os.path.join(self.settings_path, 'dumps') + "/"

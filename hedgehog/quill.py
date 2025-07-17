@@ -1,4 +1,4 @@
-from rdflib import Graph, URIRef, Literal
+from rdflib import Graph, URIRef, Literal, BNode
 from rdflib.namespace import FOAF, RDF, DC, DCTERMS, XSD
 import os, json, tempfile, shutil, subprocess, hashlib, requests, sys, datetime, pytz
 
@@ -216,14 +216,15 @@ class Quill():
 			self.progress.refresh()
 		g = Graph()
 		g.bind('prov', URIRef("http://www.w3.org/ns/prov#"))
+		for k, v in self.settings['namespaces'].items():
+			g.bind(k, URIRef(v))
 		g.parse(import_file)
 
 		self.end_time = pytz.utc.localize(datetime.datetime.utcnow())
 
-		quill_ref = URIRef(self.uri)
-		g.add((quill_ref, DC.date, Literal(self.end_time.strftime("%Y-%m-%d %H:%M:%S %z"), datatype=XSD.dateTime)))
-
-		# prov and other metadata goes here
+		g.parse(data=self.metadata())
+		g.parse(data=self.prov())
+		g.parse(data=self.rmd())
 
 		self.result = g
 
@@ -234,6 +235,76 @@ class Quill():
 				fp.write( g.serialize(format=export[1]) )
 
 		return g
+
+	def metadata(self):
+		g = Graph()
+		quill_ref = URIRef(self.uri)
+		properties = {}
+		g.add((quill_ref, RDF.type, URIRef("http://www.w3.org/ns/dcat#Dataset")))
+		g.add((quill_ref, RDF.type, URIRef("http://rdfs.org/ns/void#Dataset")))
+		if 'properties' in self.settings:
+			properties = self.settings['properties']
+		if 'name' in properties:
+			g.add((quill_ref, DC.title, Literal(properties['name'], datatype=XSD.string)))
+		if 'title' in properties:
+			g.add((quill_ref, DC.title, Literal(properties['title'], datatype=XSD.string)))
+		if 'description' in properties:
+			g.add((quill_ref, DC.description, Literal(properties['description'], datatype=XSD.string)))
+		if 'accessurl' in properties:
+			urls = properties['accessurl']
+			if not isinstance(urls, list):
+				urls = [urls]
+			for url in urls:
+				g.add((quill_ref, URIRef("http://www.w3.org/ns/dcat#accessURL"), URIRef(url)))
+		if 'license' in properties:
+			licenses = properties['license']
+			if not isinstance(licenses, list):
+				licenses = [licenses]
+			for license in licenses:
+				g.add((quill_ref, URIRef("http://purl.org/dc/terms/license"), URIRef(license)))
+		if 'stars' in properties:
+			g.add((quill_ref, URIRef("http://purl.org/dc/terms/conformsTo"), URIRef("http://purl.org/openorg/opendata-" + str(properties['stars']) + "-star")))
+		if 'publisheruri' in properties:
+			g.add((quill_ref, DC.publisher, URIRef(properties['publisheruri'])))
+		if 'authority' in properties:
+			if properties['authority']:
+				g.add((quill_ref, RDF.type, URIRef("http://purl.org/openorg/AuthoritativeDataset")))
+
+		g.add((quill_ref, DC.date, Literal(self.end_time.strftime("%Y-%m-%d"), datatype=XSD.date)))
+
+		return g.serialize(format='ntriples')
+
+	def prov(self):
+		g = Graph()
+		quill_ref = URIRef(self.uri)
+		publish_ref = URIRef(self.uri + '#publish')
+		publisher_ref = BNode()
+		properties = {}
+		if 'properties' in self.settings:
+			properties = self.settings['properties']
+		if 'publisheruri' in properties:
+			publisher = URIRef(properties['publisheruri'])
+		else:
+			publisher = BNode()
+		g.add((quill_ref, RDF.type, URIRef("http://www.w3.org/ns/prov#Entity")))
+		g.add((publish_ref, RDF.type, URIRef("http://www.w3.org/ns/prov#Activity")))
+		g.add((publisher, RDF.type, URIRef("http://www.w3.org/ns/prov#Agent")))
+		g.add((publisher_ref, RDF.type, URIRef("http://www.w3.org/ns/prov#Agent")))
+		for dl in self.settings['downloads']:
+			g.add((publish_ref, URIRef("http://www.w3.org/ns/prov#used"), URIRef(dl['download'])))
+		g.add((quill_ref, URIRef("http://www.w3.org/ns/prov#wasGeneratedBy"), publish_ref))
+		g.add((publish_ref, URIRef("http://www.w3.org/ns/prov#wasAssociatedWith"), publisher_ref))
+		g.add((quill_ref, URIRef("http://www.w3.org/ns/prov#wasAttributedTo"), publisher_ref))
+		g.add((publish_ref, URIRef("http://www.w3.org/ns/prov#startedAtTime"), Literal(self.start_time.strftime("%Y-%m-%d %H:%M:%S %z"), datatype=XSD.dateTime)))
+		g.add((publish_ref, URIRef("http://www.w3.org/ns/prov#endedAtTime"), Literal(self.end_time.strftime("%Y-%m-%d %H:%M:%S %z"), datatype=XSD.dateTime)))
+		g.add((publisher_ref, URIRef("http://www.w3.org/ns/prov#actedOnBehalfOf"), publisher))
+		if 'publishername' in properties:
+			g.add((publisher, FOAF.name, Literal(properties['publishername'], datatype=XSD.string)))
+
+		return g.serialize(format='ntriples')
+
+	def rmd(self):
+		return ""
 
 	def hashes(self):
 		if not self.prepared:
