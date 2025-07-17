@@ -1,5 +1,5 @@
 from rdflib import Graph, URIRef, Literal, BNode
-from rdflib.namespace import FOAF, RDF, DC, DCTERMS, XSD
+from rdflib.namespace import FOAF, RDF, DC, DCTERMS, XSD, VOID
 import os, json, tempfile, shutil, subprocess, hashlib, requests, sys, datetime, pytz
 
 class QuillPathNotFoundException(Exception):
@@ -224,9 +224,9 @@ class Quill():
 
 		g.parse(data=self.metadata())
 		g.parse(data=self.prov())
-		g.parse(data=self.rmd())
 
 		self.result = g
+		self.rmd()
 
 		for export in self.settings['exports']:
 			if len(export) != 2:
@@ -304,7 +304,24 @@ class Quill():
 		return g.serialize(format='ntriples')
 
 	def rmd(self):
-		return ""
+		classes = []
+		predicates = []
+		quill_ref = URIRef(self.uri)
+		for t in self.result.triples((None, RDF.type, None)):
+			if t[2] in classes:
+				continue
+			classes.append(t[2])
+		predicates = list(set(self.result.predicates()))
+		for c in classes:
+			n = BNode()
+			self.result.add((quill_ref, VOID.classPartition, n))
+			self.result.add((n, URIRef("http://rdfs.org/ns/void#class"), c))
+		for p in predicates:
+			n = BNode()
+			self.result.add((quill_ref, VOID.propertyPartition, n))
+			self.result.add((n, URIRef("http://rdfs.org/ns/void#property"), p))
+		self.result.add((quill_ref, VOID.distinctSubjects, Literal(str(len(set(self.result.subjects()))), datatype=XSD.nonNegativeInteger)))
+		self.result.add((quill_ref, VOID.triples, Literal(str(len(self.result) + 1), datatype=XSD.nonNegativeInteger)))
 
 	def hashes(self):
 		if not self.prepared:
