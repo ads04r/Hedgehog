@@ -1,7 +1,7 @@
 import pathlib, os, json, datetime
 from .quill import Quill
 from tqdm import tqdm
-from .exporters import VirtuosoTriplestore
+from .exporters import VirtuosoTriplestore, MySQLTriplestoreEmulator
 
 class MissingHedgehogConfigItem(Exception):
 	pass
@@ -140,6 +140,19 @@ class Hedgehog():
 				store.username = item['auth'][0]
 				store.password = item['auth'][1]
 				store.import_graph(item['graph_prefix'] + id, g.serialize(format='ntriples'))
+
+			if item['action'] == 'mysql':
+				if not 'host' in item:
+					continue
+				if not 'database' in item:
+					continue
+				if not 'auth' in item:
+					continue
+				store = MySQLTriplestoreEmulator(item['host'])
+				store.username = item['auth'][0]
+				store.password = item['auth'][1]
+				store.database = item['database']
+				store.import_graph("http://foo.baa/" + id, g)
 
 # {'system_name': 'Hedgehog', 'tools_dir': '/home/ash/tools/hedgehog/tools', 'rdf_base': 'http://id.flarpyland.com/',
 # 'publish': [{'url': 'http://data.southampton.ac.uk/dumps', 'path': '/home/hedgehog/dumps', 'action': 'dump'},
