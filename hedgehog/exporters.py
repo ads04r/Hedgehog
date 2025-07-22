@@ -13,8 +13,14 @@ class Triplestore():
 class VirtuosoTriplestore(Triplestore):
 	def import_graph(self, graph, data):
 		url = self.url.rstrip('/') + '/sparql-graph-crud-auth?graph-uri=' + graph
+		try:
+			with requests.delete(url, auth=HTTPDigestAuth(self.username, self.password)) as r:
+				ret = r.status_code
+		except:
+			ret = None
 		with requests.post(url, data=data, auth=HTTPDigestAuth(self.username, self.password)) as r:
-			return r.status_code
+			ret = r.status_code
+		return ret
 
 class MySQLTriplestoreEmulator(Triplestore):
 	def __init__(self, url):
