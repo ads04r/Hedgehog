@@ -47,6 +47,11 @@ def main():
 		config = {}
 		if not args.path is None:
 			config = json.load(args.path)
+		else:
+			config_path = os.path.join(os.getcwd(), "hedgehog.json")
+			if os.path.exists(config_path):
+				with open(config_path, 'r') as fp:
+					config = json.load(fp)
 
 		print(config)
 
