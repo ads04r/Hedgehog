@@ -20,7 +20,7 @@ def main():
 	parser_init.add_argument('path', type=pathlib.Path, nargs='?', help='the path in which to initialise, uses the current directory if omitted')
 
 	parser_build = operations.add_parser('build', help='build a web project into a static site')
-	parser_build.add_argument('path', type=argparse.FileType('r'), nargs='?', help='the hedgehog.json file from which to build, looks in the current directory if omitted')
+	parser_build.add_argument('path', type=argparse.FileType('r'), nargs='?', help='the build.json file from which to build, looks in the current directory if omitted')
 
 	args = parser.parse_args()
 	hh = Hedgehog()
@@ -48,7 +48,7 @@ def main():
 		if not args.path is None:
 			config = json.load(args.path)
 		else:
-			config_path = os.path.join(os.getcwd(), "hedgehog.json")
+			config_path = os.path.join(os.getcwd(), "build.json")
 			if os.path.exists(config_path):
 				with open(config_path, 'r') as fp:
 					config = json.load(fp)
