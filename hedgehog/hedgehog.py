@@ -58,7 +58,7 @@ class Hedgehog():
 				continue
 			path = os.path.join(self.settings['quills_dir'], f)
 			if os.path.isdir(path):
-				if os.path.exists(os.path.join(path, 'publish.json')):
+				if (os.path.exists(os.path.join(path, 'publish.json')) | os.path.exists(os.path.join(path, 'publish.yaml'))):
 					ret.append(f)
 			else:
 				if path.lower().endswith('.zip'):

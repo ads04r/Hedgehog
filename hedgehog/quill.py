@@ -1,6 +1,6 @@
 from rdflib import Graph, URIRef, Literal, BNode
 from rdflib.namespace import FOAF, RDF, DC, DCTERMS, XSD, VOID
-import os, json, tempfile, shutil, subprocess, hashlib, requests, sys, datetime, pytz
+import os, json, yaml, tempfile, shutil, subprocess, hashlib, requests, sys, datetime, pytz
 
 class QuillPathNotFoundException(Exception):
 	pass
@@ -49,7 +49,6 @@ class Quill():
 	def __init__(self, source_path, core_settings=None):
 
 		self.source_path = source_path
-		self.settings_file = os.path.join(source_path, 'publish.json')
 		self.hopper = tempfile.TemporaryDirectory(prefix="hedgehog_")
 		self.prepared = False
 		self.stdout = []
@@ -59,13 +58,21 @@ class Quill():
 
 		self.start_time = pytz.utc.localize(datetime.datetime.utcnow())
 
+		self.settings_file = os.path.join(source_path, 'publish.json')
+		if not os.path.exists(self.settings_file):
+			self.settings_file = os.path.join(source_path, 'publish.yaml')
 		if not os.path.exists(self.settings_file):
 			raise QuillPathNotFoundException()
 		self.settings = {}
+		settings_data = {}
 		if isinstance(core_settings, dict):
 			self.settings = core_settings.copy()
-		with open(self.settings_file) as fp:
-			settings_data = json.load(fp)
+		if self.settings_file.endswith('.json'):
+			with open(self.settings_file) as fp:
+				settings_data = json.load(fp)
+		if self.settings_file.endswith('.yaml'):
+			with open(self.settings_file) as fp:
+				settings_data = yaml.load(fp, Loader=yaml.Loader)
 		if not isinstance(settings_data, dict):
 			raise InvalidQuillException()
 		for k, v in settings_data.items():
