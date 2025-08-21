@@ -2,7 +2,8 @@
 
 from .hedgehog import Hedgehog
 from .quill import Quill
-import argparse, os, pathlib, json
+from .site import Site
+import argparse, os, pathlib, json, yaml
 
 def main():
 
@@ -45,15 +46,24 @@ def main():
 	if args.operation == 'build':
 
 		config = {}
+		config_file = None
 		if not args.path is None:
-			config = json.load(args.path)
+			config_file = args.path
 		else:
 			config_path = os.path.join(os.getcwd(), "build.json")
+			if not os.path.exists(config_path):
+				config_path = os.path.join(os.getcwd(), "build.yaml")
 			if os.path.exists(config_path):
-				with open(config_path, 'r') as fp:
-					config = json.load(fp)
+				config_file = open(config_path, 'r')
 
-		print(config)
+		if config_file:
+			if config_file.name.endswith(".json"):
+				config = json.load(config_file)
+			if config_file.name.endswith(".yaml"):
+				config = yaml.load(config_file, Loader=yaml.Loader)
+
+		site = Site(config)
+		site.build()
 
 if __name__ == '__main__':
 	main()
