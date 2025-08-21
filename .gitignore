@@ -4,5 +4,6 @@ __pycache__/
 quills
 incoming
 dumps
+build
 lib
 hedgehog.egg-info
